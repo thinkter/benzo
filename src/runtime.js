@@ -7,6 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { acquireGateway, gatewayDirectory } from "./daemon.js";
 import {
   canonicalPath,
+  hash,
   configuration,
   expand,
   launch,
@@ -245,11 +246,14 @@ export async function runDev(cwd, config, options = {}) {
         ),
       ),
     );
-    const urls = namedOrigins(lease.name, config.services, config.gateway.port);
+    const urls = namedOrigins(lease.name, config.services, config.gateway.port, config.gateway.tls ? "https" : "http");
     await listen(supervisor, 0);
     if (cancellation.signal.aborted) return;
     state = {
       protocol: "benzo/1",
+      instanceId: randomUUID(),
+      projectId: projectIdentity(cwd),
+      worktreeId: hash(cwd),
       token,
       controlPort: supervisor.address().port,
       status: "starting",

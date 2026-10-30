@@ -27,14 +27,14 @@ export function availableName(preferred, occupied, baseName = preferred) {
     if (!occupied.has(name)) return name;
   }
 }
-export function namedOrigin(name, service, port = 3000) {
-  return `http://${service ? `${service}.` : ""}${name}.localhost:${port}`;
+export function namedOrigin(name, service, port = 3000, protocol = "http") {
+  return `${protocol}://${service ? `${service}.` : ""}${name}.localhost:${port}`;
 }
-export function namedOrigins(name, services, port = 3000) {
+export function namedOrigins(name, services, port = 3000, protocol = "http") {
   return Object.fromEntries(
     services.map((service, index) => [
       service.name,
-      namedOrigin(name, index ? service.name : undefined, port),
+      namedOrigin(name, index ? service.name : undefined, port, protocol),
     ]),
   );
 }
