@@ -1,5 +1,8 @@
 # Benzo opportunity research — 2026-10-30
 
+Historical research: suggestions below are not product commitments. The current
+[scope checklist](roadmap-checklist.md) supersedes the broader expansion plan.
+
 This extends the initial Portless comparison with public consumer repositories,
 merged integration changes, and adjacent implementations. It is source research,
 not a compatibility benchmark. Reported symptoms were not reproduced locally.

@@ -21,7 +21,7 @@ and unencrypted private key in an external manifest:
 
 This example assumes a Next.js script. Select the appropriate standalone command
 for your project. Run `benzo --config /path/to/manifest.json --name feature`, or
-[associate the manifest](orchestrator-integration.md) for future bare launches.
+`benzo link --config /path/to/manifest.json` for future bare launches.
 Relative certificate/key paths resolve against the selected checkout, not the
 manifest directory. Port 8443 is an example; existing occupied ports are never
 taken over. Privileged ports still require the host's normal permissions.
@@ -64,7 +64,7 @@ without trust or with a hostname mismatch, HTTPS callback routing, redirects,
 encrypted WebSocket forwarding, key redaction, and launcher conflict isolation.
 A Chromium fixture exercises Secure host-only cookies, Refresh navigation and
 WSS with a test-certificate SPKI exception. That exception is test-only and is
-**not evidence of system/browser CA trust**. The optional `test:clients` suite
+**not evidence of system/browser CA trust**. The optional `lab:clients` suite
 also verifies Go HTTPS with an explicit root pool and hostname verification:
 trust succeeds, missing trust and wrong hostnames fail. It uses a client-local
 loopback dialer while retaining the named URL/SNI, so it does not establish OS DNS

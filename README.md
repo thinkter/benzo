@@ -41,9 +41,9 @@ benzo`, or `pnpm dlx benzo dev`). This repository has not been published.
 
 The implementation roadmap and release gates are tracked in
 [docs/roadmap-checklist.md](docs/roadmap-checklist.md). The checklist keeps
-automatic discovery, origin virtualization, orchestrator integration, HTTPS,
-and stateful-stack support separate so a passing small fixture is not mistaken
-for universal drop-in compatibility.
+the supported routing/lifecycle core, optional diagnostics, and remaining
+validation separate. Task scheduling, framework-specific adapters and stateful
+stack management are outside Benzo.
 
 Benzo recognizes Vite, Next.js, Nuxt and Astro commands and passes their existing
 port/host flags. It follows common workspace `--cwd` delegation and final dev
@@ -149,13 +149,11 @@ fields fail before launch. Unknown fields remain compatible but are reported by
 `config`, `explain`, and startup diagnostics; their values are not printed in
 those unknown-field diagnostics.
 
-For orchestrated repositories, see [script selection, external manifests, and
-runner-owned listeners](docs/orchestrator-integration.md).
+For unusual multi-service apps, use an external manifest or the listener SDK;
+Benzo does not execute a project orchestrator.
 `benzo link --config /path/project.json` remembers an external manifest for this
 checkout, so later launches need only `benzo`. `benzo unlink` restores ordinary
 discovery. This writes only to Benzo's per-user home, not the project.
-`benzo inspect --from wireit --json` reads declared task dependencies without
-executing them. It reports integration gaps; it does not replace Wireit's runner.
 
 ```json
 {
@@ -236,7 +234,7 @@ unchanged. Root orchestration and automatic Portless migration remain unsupporte
 Sokosumi requires HTTPS443 and an authenticated backend baseline; Documenso and
 Plane are blocked by missing Docker prerequisites. Native Windows/macOS and
 external OAuth providers have not been demonstrated locally. See the [results and
-reproduction instructions](compatibility/README.md) and [replacement roadmap](docs/replacement-roadmap.md).
+reproduction instructions](compatibility/README.md) and [scope checklist](docs/roadmap-checklist.md).
 
 Integrations can use [`getEnvironment()`](docs/environment-api.md) to read actual
 running origins and service identities without parsing logs or private state.

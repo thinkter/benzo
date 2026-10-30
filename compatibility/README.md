@@ -10,7 +10,7 @@ pnpm install
 pnpm exec playwright install chromium
 pnpm test
 pnpm test:browser
-pnpm test:clients                # optional Go + Python fixtures; needs go, python3, openssl
+pnpm lab:clients                # optional Go + Python fixtures; needs go, python3, openssl
 pnpm test:soak                   # optional Unix lifecycle stress; 8 cycles by default
 pnpm test:compat                  # all pinned OSS recipes
 pnpm test:compat excalidraw       # one recipe
@@ -39,7 +39,7 @@ tracked and untracked files; ignored dependencies/build output are excluded.
 eight-app pass. The test compares the complete Portless/Benzo origin at an
 unprivileged test port. It does not run the root Wireit graph or the upstream E2E
 suite that embeds port 1355. Those remain replacement gates in the
-[roadmap](../docs/replacement-roadmap.md). Assertions are adapted from upstream;
+[roadmap](../docs/roadmap-checklist.md). Assertions are adapted from upstream;
 the entire upstream test suite has not passed through Benzo.
 
 Reports record per-scenario timings/results, exact commit/tool/browser versions,
@@ -79,7 +79,7 @@ and Better Auth OAuth with one fixed callback, a real local provider enforcing
 redirect_uri and S256 PKCE, and worktree session/logout isolation. These are small
 fixtures, not substitutes for authenticated large-project trials.
 
-`test:clients` is an optional local fixture suite, separate from packaged OSS
+`lab:clients` is an optional local fixture suite, separate from packaged OSS
 consumer trials. Go uses a client-local CA pool and loopback dialer to verify TLS
 trust and hostname rejection without bypassing verification; this does not prove
 OS DNS or global trust setup. Python's standard-library HTTP server is run first

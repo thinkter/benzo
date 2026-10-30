@@ -4,7 +4,7 @@ Bare `benzo` recognizes these single-command package scripts without editing the
 project or starting Portless:
 
 ```json
-{"scripts":{"dev":"portless run vite"}}
+{ "scripts": { "dev": "portless run vite" } }
 ```
 
 Supported forms are `portless run [--name simple-name] [--] vite ...`,
@@ -25,8 +25,7 @@ Rejected rather than guessed: lifecycle pre/post hooks, shell operators,
 expansion, quoting, fixed framework host/port flags, unknown executables,
 Portless-specific flags and existing local Portless configuration. Use an
 original unwrapped `--script`, explicit command or external manifest for those
-cases. Root Wireit/Turbo graphs and arbitrary custom wrappers remain separate
-integration work. The external-listener SDK is available for orchestrators that
+cases. Project orchestrators and arbitrary custom wrappers remain outside Benzo. The external-listener SDK is available for orchestrators that
 need to retain their process ownership.
 
 Tests cover parser rejection and source preservation plus real Vite/Next

@@ -11,3 +11,9 @@ Origin virtualization should be transparent and safe: keep users on the named
 worktree when that can be done without weakening application security, preserve
 external redirects and normal responses, and report unsupported cases clearly
 instead of pretending compatibility.
+
+Keep the product focused on named origins, safe proxying/auth, and listener
+ownership. Task-graph inspection/execution, database provisioning, framework-
+specific adapters and mutating migrations are out of scope. Explicit manifests
+and SDK leases are the extension points. Optional research fixtures belong in
+compatibility/lab and do not establish supported product features.

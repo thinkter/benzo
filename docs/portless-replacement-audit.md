@@ -1,5 +1,8 @@
 # Portless replacement audit
 
+Historical research: suggestions below are not product commitments. The current
+[scope checklist](roadmap-checklist.md) supersedes the broader expansion plan.
+
 This audit distinguishes a working proxy from replacement of an existing
 development workflow. Research source: `portless-opportunities-research.md`.
 Execution evidence: `../compatibility/reports/`, pinned recipe commits, and the
@@ -19,7 +22,7 @@ guessing, but is not a successful drop-in replacement.
 
 The existing state-in-url harness selects individual example directories and
 passes `dev --cwd ... --name ... --gateway-port ...`. It does not run the root
-Wireit graph or exercise its Portless shell wrapper through bare Benzo. Its
+project graph or exercise its Portless shell wrapper through bare Benzo. Its
 successful lanes prove individual app compatibility, not whole-repository
 replacement. Excalidraw likewise provides browser/lifecycle evidence with
 explicit harness configuration, not a bare-command acceptance gate.
@@ -77,11 +80,10 @@ and capacity management requirements are not implemented by named URLs alone.
    Export a versioned descriptor including scheme, host, port, readiness and
    identity. These primitives now exist through `getEnvironment()` and
    `reserveEnvironment()`; consumer-specific integration remains unverified.
-2. **Read-only discovery adapters.** Recognize simple Portless wrappers and
-   declared Wireit/Turbo/workspace graphs. Preserve prerequisite tasks and
-   dependency order. Never evaluate arbitrary shell/JavaScript to discover
-   behavior, or silently run a second proxy inside Benzo. Literal Vite/Next
-   wrappers and read-only Wireit inspection now exist; graph execution does not.
+2. **Keep orchestrators external.** Use explicit manifests or the listener SDK
+   when a project owns dependency order, workers, or multiple services. Benzo
+   does not inspect or execute Wireit/Turbo/workspace graphs and never evaluates
+   arbitrary shell/JavaScript to guess behavior.
 3. **Per-user fallback configuration.** Existing external JSON manifests,
    explicit commands, script selection, environment placeholders and health
    checks already provide an escape hatch without app edits. `benzo link
