@@ -18,7 +18,7 @@ import {
 } from "./runtime.js";
 
 function parse(argv) {
-  const result = { command: argv[0] ?? "dev", discovery: {} };
+  const result = { command: argv[0] ?? "dev", discovery: {}, env: {} };
   let index = 1;
   if (argv[0]?.startsWith("-")) {
     result.command = "help";
@@ -33,7 +33,16 @@ function parse(argv) {
         throw new Error("Expected a command after --.");
       break;
     }
-    if (
+    if (arg === "--env") {
+      const value = argv[++index] ?? "";
+      const separator = value.indexOf("=");
+      const key = value.slice(0, separator);
+      if (separator < 1 || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key))
+        throw new Error(
+          "--env requires KEY=value. Use an existing application environment setting.",
+        );
+      result.env[key] = value.slice(separator + 1);
+    } else if (
       [
         "--cwd",
         "--config",
@@ -57,7 +66,7 @@ function parse(argv) {
   if (result.script) result.discovery.script = result.script;
   return result;
 }
-const help = `Benzo — development servers across worktrees\n\n  benzo dev                         discover and run the existing dev script\n  benzo dev -- python -m http.server {port}\n  benzo dev --config /path/config.json\n  benzo status | urls | logs | stop | doctor\n\nOptions: --cwd <path> --name <name> --script <script>\n         --gateway-port <port> --auth-relay --json\n\nNo application edits. No hosts-file changes. Auth passes through by default.\n--auth-relay can return an observed OAuth callback to its initiating worktree;\nit keeps the existing localhost callback URL. Run doctor for compatibility limits.`;
+const help = `Benzo — development servers across worktrees\n\n  benzo dev                         discover and run the existing dev script\n  benzo dev -- python -m http.server {port}\n  benzo dev --config /path/config.json\n  benzo status | urls | logs | stop | doctor\n\nOptions: --cwd <path> --name <name> --script <script>\n         --gateway-port <port> --env KEY=value --auth-relay --json\n\nNo application edits. No hosts-file changes. Auth passes through by default.\n--auth-relay can return an observed OAuth callback to its initiating worktree;\nit keeps the existing localhost callback URL. Run doctor for compatibility limits.`;
 async function main() {
   const options = parse(process.argv.slice(2));
   if (options.command === "_gateway") {
@@ -113,6 +122,14 @@ async function main() {
       },
     });
   if (options.authRelay) config.auth = { mode: "relay" };
+  if (Object.keys(options.env).length)
+    config = normalizeManifest({
+      ...config,
+      services: config.services.map((service) => ({
+        ...service,
+        env: { ...service.env, ...options.env },
+      })),
+    });
   if (options.command === "doctor") {
     const diagnostics = {
       discovery: config.discovery ?? "manifest",

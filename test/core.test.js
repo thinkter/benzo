@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createServer, request as httpRequest } from "node:http";
 import { createServer as createNetServer, createConnection } from "node:net";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -130,10 +130,56 @@ test("zero-config discovery preserves scripts and applies documented framework f
         pkg,
       );
     }
-    for (const script of ["turbo run dev", "wireit"]) {
-      await writeFile(join(directory, "package.json"), JSON.stringify({ scripts: { dev: script } }));
+    for (const script of [
+      "turbo run dev",
+      "wireit",
+      "pnpm -r --parallel dev",
+      "pnpm --recursive dev",
+      "concurrently vite node api.js",
+    ]) {
+      await writeFile(
+        join(directory, "package.json"),
+        JSON.stringify({ scripts: { dev: script } }),
+      );
       assert.throws(() => discoverManifest(directory), /orchestrator/);
     }
+    await writeFile(
+      join(directory, "package.json"),
+      JSON.stringify({ scripts: { dev: "portless run -- vite" } }),
+    );
+    assert.throws(
+      () => discoverManifest(directory),
+      /already invokes Portless/,
+    );
+    const nested = join(directory, "packages", "web");
+    await mkdir(nested, { recursive: true });
+    await writeFile(
+      join(directory, "package.json"),
+      JSON.stringify({ packageManager: "pnpm@10.26.0" }),
+    );
+    await writeFile(
+      join(nested, "package.json"),
+      JSON.stringify({ scripts: { dev: "next dev" } }),
+    );
+    assert.equal(
+      discoverManifest(nested).services[0].command,
+      "pnpm",
+      "Workspace packages inherit the root package manager",
+    );
+    await writeFile(
+      join(nested, "package.json"),
+      JSON.stringify({
+        scripts: {
+          dev: "ASTRO_DEV_BACKGROUND=1 pnpm exec astro dev --ignore-lock --port ${PORT:-5184}",
+        },
+      }),
+    );
+    const astro = discoverManifest(nested).services[0];
+    assert.deepEqual(
+      astro.args,
+      ["run", "dev", "--host", "127.0.0.1"],
+      "An existing PORT binding must not receive a duplicate Astro --port flag",
+    );
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

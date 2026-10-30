@@ -118,6 +118,55 @@ async function cleanup(f, children) {
 }
 
 test(
+  "launch overrides expand origins, win over manifest settings, and stay out of status",
+  { timeout: 30000 },
+  async () => {
+    const f = await fixture();
+    await writeFile(
+      join(f.cwd, "server.cjs"),
+      "require('node:http').createServer((req,res)=>res.end(JSON.stringify({origin:process.env.APP_URL,value:process.env.CUSTOM_VALUE}))).listen(Number(process.env.PORT),'127.0.0.1')",
+    );
+    await writeFile(
+      join(f.cwd, "benzo.config.json"),
+      JSON.stringify({
+        services: [
+          {
+            name: "web",
+            command: "node",
+            args: ["server.cjs"],
+            env: { CUSTOM_VALUE: "manifest" },
+          },
+        ],
+      }),
+    );
+    const child = start(
+      f.cwd,
+      f.home,
+      f.port,
+      "--env",
+      "APP_URL={origin}",
+      "--env",
+      "CUSTOM_VALUE=launch=only",
+    );
+    try {
+      const running = await waitFor(() => state(f.cwd, f.home));
+      const response = await request(f.port, new URL(running.urls.web).host);
+      assert.deepEqual(JSON.parse(response.body), {
+        origin: running.urls.web,
+        value: "launch=only",
+      });
+      assert.ok(!JSON.stringify(running).includes("launch=only"));
+      await assert.rejects(
+        call(f.cwd, f.home, "doctor", "--env", "MISSING_EQUALS"),
+        /KEY=value/,
+      );
+    } finally {
+      await cleanup(f, [child]);
+    }
+  },
+);
+
+test(
   "zero-config startup preserves application environment, waits for readiness, writes no project files, stops cleanly",
   { timeout: 30000 },
   async () => {

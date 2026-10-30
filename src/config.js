@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 export const DEFAULT_MANIFEST = {
   gateway: { port: 3000, controlPort: 2999, host: "127.0.0.1" },
@@ -121,10 +121,24 @@ export function framework(script) {
 }
 function packageManager(root, pkg) {
   if (pkg.packageManager) return pkg.packageManager.split("@")[0];
-  if (existsSync(join(root, "pnpm-lock.yaml"))) return "pnpm";
-  if (existsSync(join(root, "yarn.lock"))) return "yarn";
-  if (existsSync(join(root, "bun.lock")) || existsSync(join(root, "bun.lockb")))
-    return "bun";
+  for (let directory = resolve(root); ;) {
+    if (existsSync(join(directory, "pnpm-lock.yaml"))) return "pnpm";
+    if (existsSync(join(directory, "yarn.lock"))) return "yarn";
+    if (
+      existsSync(join(directory, "bun.lock")) ||
+      existsSync(join(directory, "bun.lockb"))
+    )
+      return "bun";
+    if (existsSync(join(directory, "package-lock.json"))) return "npm";
+    const parent = dirname(directory);
+    if (parent === directory) break;
+    const path = join(parent, "package.json");
+    if (existsSync(path)) {
+      const ancestor = JSON.parse(readFileSync(path, "utf8"));
+      if (ancestor.packageManager) return ancestor.packageManager.split("@")[0];
+    }
+    directory = parent;
+  }
   return "npm";
 }
 function nestedFramework(cwd, script, depth = 0) {
@@ -166,6 +180,20 @@ export function discoverManifest(cwd, { script, command, args = [] } = {}) {
   const pkg = JSON.parse(readFileSync(path, "utf8"));
   if (pkg.benzo) return normalizeManifest(pkg.benzo);
   script ??= pkg.scripts?.dev ? "dev" : "start";
+  if (
+    typeof pkg.scripts?.[script] === "string" &&
+    (/\b(?:turbo|nx|concurrently|docker|wireit)\b/.test(pkg.scripts[script]) ||
+      /(?:^|\s)pnpm\s+(?:[^\n]*\s)?(?:-r|--recursive|--parallel)(?:\s|$)/.test(
+        pkg.scripts[script],
+      ))
+  )
+    throw new Error(
+      `The ${script} script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application.`,
+    );
+  if (/(?:^|\s)portless(?:\s|$)/.test(pkg.scripts?.[script] ?? ""))
+    throw new Error(
+      "This script already invokes Portless. Select the original application script with --script, or supply its command after --. Automatic Portless migration is not implemented.",
+    );
   const detected = nestedFramework(cwd, pkg.scripts?.[script]);
   const manager = packageManager(cwd, pkg);
   if (detected) {
@@ -173,6 +201,16 @@ export function discoverManifest(cwd, { script, command, args = [] } = {}) {
       detected === "next"
         ? ["--hostname", "127.0.0.1", "--port", "{port}"]
         : ["--host", "127.0.0.1", "--port", "{port}"];
+    // Astro's argument parser makes repeated --port values an array and falls
+    // back to its default port. Preserve scripts already binding the port to
+    // Benzo's PORT environment instead of appending a second flag.
+    if (
+      detected === "astro" &&
+      /--port(?:\s+|=)["']?(?:\$\{PORT(?::-[^}]+)?\}|\$PORT|%PORT%)(?:["']?(?:\s|$))/.test(
+        pkg.scripts[script],
+      )
+    )
+      flags.splice(-2);
     if (["vite", "remix"].includes(detected)) flags.push("--strictPort");
     return normalizeManifest({
       discovery: detected,
@@ -189,10 +227,6 @@ export function discoverManifest(cwd, { script, command, args = [] } = {}) {
     if (/\bbenzo\b/.test(pkg.scripts[script]))
       throw new Error(
         "This script already invokes Benzo. Use --script to select the original application dev script.",
-      );
-    if (/\b(?:turbo|nx|concurrently|docker|wireit)\b/.test(pkg.scripts[script]))
-      throw new Error(
-        `The ${script} script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application.`,
       );
     return normalizeManifest({
       discovery: "script",
