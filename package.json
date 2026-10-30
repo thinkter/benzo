@@ -15,15 +15,22 @@
     "README.md",
     "LICENSE",
     "docs/auth-compatibility.md",
+    "docs/environment-api.md",
+    "docs/portless-adapter.md",
+    "docs/orchestrator-integration.md",
+    "docs/roadmap-checklist.md",
+    "docs/https.md",
     "docs/compatibility-plan.md",
     "compatibility/README.md",
     "compatibility/reports",
     "docs/replacement-roadmap.md"
   ],
   "scripts": {
-    "test": "node --test test/core.test.js test/auth.test.js test/runtime.test.js test/better-auth.test.js test/acceptance.test.js test/streaming.test.js",
-    "test:watch": "node --test --watch test/core.test.js test/auth.test.js test/runtime.test.js test/better-auth.test.js test/acceptance.test.js test/streaming.test.js",
-    "test:browser": "node --test test/browser/auth.test.js test/browser/frameworks.test.js",
+    "test": "node --test test/core.test.js test/auth.test.js test/runtime.test.js test/better-auth.test.js test/acceptance.test.js test/streaming.test.js test/wireit.test.js test/portless-plan.test.js test/tls.test.js",
+    "test:watch": "node --test --watch test/core.test.js test/auth.test.js test/runtime.test.js test/better-auth.test.js test/acceptance.test.js test/streaming.test.js test/wireit.test.js test/portless-plan.test.js test/tls.test.js",
+    "test:browser": "node --test test/browser/auth.test.js test/browser/frameworks.test.js test/browser/tls.test.js test/browser/form-post.test.js",
+    "test:clients": "node --test test/clients.test.js",
+    "test:soak": "node --test test/lifecycle-soak.test.js",
     "test:compat": "node compatibility/run.mjs"
   },
   "engines": {

@@ -1,5 +1,10 @@
 # Drop-in replacement roadmap
 
+This is the detailed design and acceptance plan. For current completion status
+and links to implemented contracts, use the [roadmap checklist](roadmap-checklist.md).
+Several capabilities proposed below are now implemented; their broader consumer
+acceptance gates can still remain open.
+
 The goal is to remove project-specific development glue: keep the application's
 commands and behavior, add Benzo, and stop thinking about port assignments.
 Passing a proxy smoke test does not establish replacement. Each advertised
@@ -103,12 +108,14 @@ This addresses Meridian Flow's parsing/port assumptions and Alchemy's API needs.
 
 ## 4. Trial Portless adoption without changing the app
 
-Proposed CLI, not shipped:
+Read-only inspection and HTTP-trial plans are now implemented for narrow literal
+root scripts; see [scope and limits](portless-adapter.md). Mutating migration
+remains proposed:
 
 ```text
 benzo dev --from portless
 benzo migrate portless --dry-run
-benzo migrate portless
+benzo migrate portless              # not implemented; rejected
 ```
 
 Start with read-only inspection of documented Portless configuration and simple
@@ -146,8 +153,9 @@ a supported replacement. PagoPA's removal motivates measuring manual setup steps
 
 ## 6. Validate auth without weakening it
 
-Default remains pass-through. The opt-in OAuth relay preserves the existing
-provider redirect URI for the currently tested query callback flow. Extend only
+Default pass-through preserves auth response bodies and provider redirect URIs
+while observing callback affinity. Query and declared `form_post` callback flows
+are now covered within the documented method, body and cookie-policy limits. Extend only
 after reproducing a real failure with a local provider enforcing exact redirect
 URI, state and PKCE checks. See [auth cases](auth-compatibility.md).
 

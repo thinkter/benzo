@@ -10,7 +10,8 @@ http://api.feature.localhost:3000
 
 **No application edits.** Benzo discovers common development commands, assigns
 internal ports, supervises services, and shares one HTTP/WebSocket gateway. It
-keeps its files outside your checkout. Auth passes through by default.
+keeps its files outside your checkout. Auth responses pass through unchanged;
+local callback affinity and loopback redirects are handled at the gateway.
 
 ## Use it
 
@@ -38,6 +39,12 @@ benzo dev --cwd /path/to/worktree
 After publication, the same flows can use the registry package (`pnpm add -D
 benzo`, or `pnpm dlx benzo dev`). This repository has not been published.
 
+The implementation roadmap and release gates are tracked in
+[docs/roadmap-checklist.md](docs/roadmap-checklist.md). The checklist keeps
+automatic discovery, origin virtualization, orchestrator integration, HTTPS,
+and stateful-stack support separate so a passing small fixture is not mistaken
+for universal drop-in compatibility.
+
 Benzo recognizes Vite, Next.js, Nuxt and Astro commands and passes their existing
 port/host flags. It follows common workspace `--cwd` delegation and final dev
 commands in `&&` chains, preserving the original script. Recognition is broader
@@ -51,6 +58,16 @@ benzo dev -- python -m http.server {port}
 benzo dev --script start:web
 ```
 
+Simple literal `portless run vite` and `portless run next dev` scripts can be
+launched directly by Benzo with an explicit HTTP-trial warning. See the
+[adapter limits](docs/portless-adapter.md); full Portless configuration migration
+and arbitrary wrappers remain unsupported.
+
+Use `benzo migrate portless --dry-run --json` (or `benzo dev --from portless`)
+to inspect the selected root script without launching or changing files. It
+reports a no-edit HTTP trial when supported, and explicit issue codes otherwise.
+It does not preserve Portless origins or apply a migration.
+
 Benzo does not interpret shell command strings. Put arguments after `--` as
 separate tokens. A framework's script still uses its own normal package manager.
 
@@ -58,12 +75,19 @@ separate tokens. A framework's script still uses its own normal package manager.
 
 ```text
 benzo status              live status, internal ports, URLs and log paths
+benzo describe --json     versioned live environment descriptor
 benzo urls                URLs for this worktree
 benzo logs                captured output, including the last stopped run
 benzo logs --service api  one service's captured output
 benzo stop                ask the owning supervisor to stop this worktree
 benzo doctor              discovery, DNS and auth compatibility diagnostics
 ```
+
+`benzo config --json` and `benzo explain` inspect the launch plan without
+starting services. They expose environment key names and redact command text,
+arguments, auth upstream URLs and readiness paths, which can contain credentials.
+The requested name is provisional: collision handling and port allocation occur
+at launch. Use `benzo status --json` for actual running origins and ports.
 
 Use `--json` with status, urls or doctor. Use `--cwd`, `--name`, or
 `--gateway-port` to override the checkout, public name, or shared gateway port.
@@ -88,13 +112,15 @@ Ordinary auth requests, cookies, request bodies, headers and redirects pass thro
 Benzo preserves the environment expected by the original command, including auth
 settings. It never records inherited environment values in state.
 
-If an existing OAuth provider returns to a fixed localhost callback, opt into:
+If an existing OAuth provider returns to a fixed localhost callback, Benzo handles
+the callback automatically. The explicit flag remains available for manifests
+that opt into relay mode:
 
 ```sh
 benzo dev --auth-relay
 ```
 
-The relay observes OAuth state in authorization redirects or small uncompressed
+The gateway observes OAuth state in authorization redirects or small uncompressed
 auth JSON responses. When the existing callback returns to this gateway's
 `localhost` origin, it redirects the browser once to the initiating named
 worktree. The original provider `redirect_uri`, code exchange and PKCE validation
@@ -114,6 +140,22 @@ reports](docs/auth-compatibility.md).
 Benzo supports `benzo.config.json`, a `benzo` field in package.json, or an
 **external** JSON file via `--config /path/project.json`. None requires changing
 application source or existing framework/auth configuration.
+
+[Opt-in HTTPS](docs/https.md) accepts user-supplied certificate/key files. Benzo
+does not install a CA or change client trust settings; HTTP stays the default.
+
+Manifests use `schemaVersion: 1` (also the default when omitted). Malformed known
+fields fail before launch. Unknown fields remain compatible but are reported by
+`config`, `explain`, and startup diagnostics; their values are not printed in
+those unknown-field diagnostics.
+
+For orchestrated repositories, see [script selection, external manifests, and
+runner-owned listeners](docs/orchestrator-integration.md).
+`benzo link --config /path/project.json` remembers an external manifest for this
+checkout, so later launches need only `benzo`. `benzo unlink` restores ordinary
+discovery. This writes only to Benzo's per-user home, not the project.
+`benzo inspect --from wireit --json` reads declared task dependencies without
+executing them. It reports integration gaps; it does not replace Wireit's runner.
 
 ```json
 {
@@ -195,3 +237,10 @@ Sokosumi requires HTTPS443 and an authenticated backend baseline; Documenso and
 Plane are blocked by missing Docker prerequisites. Native Windows/macOS and
 external OAuth providers have not been demonstrated locally. See the [results and
 reproduction instructions](compatibility/README.md) and [replacement roadmap](docs/replacement-roadmap.md).
+
+Integrations can use [`getEnvironment()`](docs/environment-api.md) to read actual
+running origins and service identities without parsing logs or private state.
+Clients can use `benzo exec --env BASE_URL='{services.web.origin}' -- <command>`
+to receive an explicit URL binding from the running environment. The client must
+already support that environment variable; Benzo preserves its arguments and
+does not change the dev server's lifecycle.
