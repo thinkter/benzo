@@ -2,8 +2,8 @@
   "project": "sokosumi",
   "repository": "https://github.com/masumi-network/sokosumi.git",
   "commit": "59c5275c0b5b539580d6c266a235a22fb32e3a0c",
-  "benzoBuild": "0f00e46e62a86d56b1f1b5a9adde8a45118656a5d035f07ae3347197cbb7fdc4",
-  "testedAt": "2026-10-30T14:45:22.661Z",
+  "benzoBuild": "70afb60e1715411627cb0b6079c6baa18f3bfe109bf2a2c00cfeae4f192e261a",
+  "testedAt": "2026-10-30T17:51:38.287Z",
   "platform": {
     "os": "linux",
     "architecture": "x64",

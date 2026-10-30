@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "kind": "local-client-fixture-validation",
+  "testedAt": "2026-10-30T19:34:25.227Z",
+  "platform": {
+    "os": "linux",
+    "arch": "x64",
+    "node": "v26.10.0",
+    "go": "go version go1.27.1-X:nodwarf5 linux/amd64",
+    "python": "Python 3.14.7"
+  },
+  "source": {
+    "kind": "uncommitted-working-tree",
+    "baseCommit": "e31a4d419ce7cdce3c0c9d3972fdebead25d5d49",
+    "runtimeSha256": "5daf8b7147f95aca35732e1f3532a324673f230f0708b5976288b60061c880c7",
+    "fixtureSha256": "2fc99dce3e25eaed206636a541d6b930682944941529c4cceb6c44c237d917b3",
+    "tarballTested": false
+  },
+  "execution": "completed",
+  "command": "npm run test:clients",
+  "scenarios": [
+    {
+      "case": "go-explicit-ca-trust-and-hostname-verification",
+      "result": "passed",
+      "scope": "Client-local root pool and loopback dialer; named URL and SNI retained; untrusted and wrong-host requests rejected."
+    },
+    {
+      "case": "python-original-baseline-and-two-bare-launches",
+      "result": "passed",
+      "scope": "Standard-library HTTP server; external manifest linked per directory; name collision/private ports/content isolation/peer survival/cleanup/source restoration."
+    }
+  ],
+  "replacement": "not-established",
+  "limitations": [
+    "Local fixtures, not packaged OSS consumer trials.",
+    "No automatic non-Node framework discovery.",
+    "No proof of OS named-host DNS or globally installed trust.",
+    "Trusted Chromium without the test SPKI exception remains unverified; existing user trust stores were not changed.",
+    "Docker unavailable; no container trust test.",
+    "Native Windows/macOS and privileged port 443 not tested."
+  ]
+}

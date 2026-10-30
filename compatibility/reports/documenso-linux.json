@@ -2,8 +2,8 @@
   "project": "documenso",
   "repository": "https://github.com/documenso/documenso.git",
   "commit": "503cd1aa1c7507ef8cadf476a7998bec7673f6d2",
-  "benzoBuild": "80f534c4be9edfa7429eee4f2b96080a5d8f6191fd53c68e9ac0b5f33edd8427",
-  "testedAt": "2026-10-30T14:01:13.234Z",
+  "benzoBuild": "70afb60e1715411627cb0b6079c6baa18f3bfe109bf2a2c00cfeae4f192e261a",
+  "testedAt": "2026-10-30T17:51:38.255Z",
   "platform": {
     "os": "linux",
     "architecture": "x64",
@@ -13,6 +13,10 @@
   "result": "blocked",
   "applicationChangesRequired": null,
   "scenarios": [],
+  "schemaVersion": 2,
+  "replacement": "not-established",
+  "execution": "completed",
+  "reproduction": "pnpm test:compat documenso",
   "discovery": "unsupported",
   "discoveryDiagnostic": "The dev script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application.",
   "reason": "Missing usable docker. Documented Docker/PostgreSQL setup, migrations, translation compilation and test-only auth configuration. No baseline has been established on this host."

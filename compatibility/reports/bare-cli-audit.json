@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-30T17:51:49.827Z",
+  "scope": "Root no-argument invocation; no application files changed; these commands reject before launch",
+  "results": [
+    {
+      "project": "state-in-url",
+      "commit": "8edfd055ddb06da34bfaf4b9cdae50e6562d5eb9",
+      "command": "benzo",
+      "flags": [],
+      "exitCode": 1,
+      "result": "failed",
+      "diagnostic": "benzo: The dev script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application."
+    },
+    {
+      "project": "sokosumi",
+      "commit": "59c5275c0b5b539580d6c266a235a22fb32e3a0c",
+      "command": "benzo",
+      "flags": [],
+      "exitCode": 1,
+      "result": "failed",
+      "diagnostic": "benzo: The dev script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application."
+    },
+    {
+      "project": "documenso",
+      "commit": "503cd1aa1c7507ef8cadf476a7998bec7673f6d2",
+      "command": "benzo",
+      "flags": [],
+      "exitCode": 1,
+      "result": "failed",
+      "diagnostic": "benzo: The dev script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application."
+    },
+    {
+      "project": "plane",
+      "commit": "b98e1defb0e089d4505712d89ee9e137fd0935cd",
+      "command": "benzo",
+      "flags": [],
+      "exitCode": 1,
+      "result": "failed",
+      "diagnostic": "benzo: The dev script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application."
+    }
+  ]
+}

@@ -2,8 +2,8 @@
   "project": "excalidraw",
   "repository": "https://github.com/excalidraw/excalidraw.git",
   "commit": "b99a49dbebd25fbf85ad9ae33c9e361a16d5a39e",
-  "benzoBuild": "de94b85309897ed9b3ec91ca8869de5d99c10ea105d3e236dd12ee10d77d2379",
-  "testedAt": "2026-10-30T16:19:47.007Z",
+  "benzoBuild": "70afb60e1715411627cb0b6079c6baa18f3bfe109bf2a2c00cfeae4f192e261a",
+  "testedAt": "2026-10-30T17:50:41.219Z",
   "platform": {
     "os": "linux",
     "architecture": "x64",

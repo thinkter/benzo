@@ -2,29 +2,29 @@
   "project": "state-in-url",
   "repository": "https://github.com/asmyshlyaev177/state-in-url.git",
   "commit": "8edfd055ddb06da34bfaf4b9cdae50e6562d5eb9",
-  "benzoBuild": "d879d10150bff6e99ae31ab231d2752a9a9e128a8182762c50e61259db79dedc",
-  "testedAt": "2026-10-30T14:40:27.037Z",
+  "benzoBuild": "cfc80eaeebe8159f2d6bc4985b6d86ff4762719f6e079da8160daa520c51b8b4",
+  "testedAt": "2026-10-30T17:48:08.180Z",
   "platform": {
     "os": "linux",
     "architecture": "x64",
     "node": "v26.10.0"
   },
   "baseline": "passed",
-  "result": "passed",
-  "applicationChangesRequired": false,
+  "result": "not-run",
+  "applicationChangesRequired": null,
   "scenarios": [
     {
       "case": "react:baseline",
       "lane": "original-command",
       "result": "passed",
-      "durationMs": 3152
+      "durationMs": 3514
     },
     {
       "case": "react:portless",
       "lane": "portless",
-      "origin": "http://example-react.localhost:44853",
+      "origin": "http://example-react.localhost:46403",
       "result": "passed",
-      "durationMs": 4920
+      "durationMs": 5147
     },
     {
       "case": "react:consumer-parity",
@@ -36,25 +36,25 @@
       "comparedWithPortless": true,
       "hmrIsolation": "passed",
       "stopPreservesPeer": true,
-      "durationMs": 4977
+      "durationMs": 5368
     },
     {
       "case": "react:cleanup",
       "result": "passed",
-      "durationMs": 454
+      "durationMs": 455
     },
     {
       "case": "react-router6:baseline",
       "lane": "original-command",
       "result": "passed",
-      "durationMs": 4247
+      "durationMs": 5689
     },
     {
       "case": "react-router6:portless",
       "lane": "portless",
-      "origin": "http://example-react-router6.localhost:34587",
+      "origin": "http://example-react-router6.localhost:39149",
       "result": "passed",
-      "durationMs": 6064
+      "durationMs": 7729
     },
     {
       "case": "react-router6:consumer-parity",
@@ -65,25 +65,25 @@
       "originPreserved": true,
       "comparedWithPortless": true,
       "stopPreservesPeer": true,
-      "durationMs": 7715
+      "durationMs": 9475
     },
     {
       "case": "react-router6:cleanup",
       "result": "passed",
-      "durationMs": 454
+      "durationMs": 302
     },
     {
       "case": "react-router7:baseline",
       "lane": "original-command",
       "result": "passed",
-      "durationMs": 4244
+      "durationMs": 5063
     },
     {
       "case": "react-router7:portless",
       "lane": "portless",
-      "origin": "http://example-react-router7.localhost:46541",
+      "origin": "http://example-react-router7.localhost:35691",
       "result": "passed",
-      "durationMs": 6045
+      "durationMs": 7536
     },
     {
       "case": "react-router7:consumer-parity",
@@ -94,25 +94,25 @@
       "originPreserved": true,
       "comparedWithPortless": true,
       "stopPreservesPeer": true,
-      "durationMs": 7685
+      "durationMs": 9272
     },
     {
       "case": "react-router7:cleanup",
       "result": "passed",
-      "durationMs": 453
+      "durationMs": 454
     },
     {
       "case": "remix2:baseline",
       "lane": "original-command",
       "result": "passed",
-      "durationMs": 6155
+      "durationMs": 8425
     },
     {
       "case": "remix2:portless",
       "lane": "portless",
-      "origin": "http://example-remix2.localhost:43545",
+      "origin": "http://example-remix2.localhost:46317",
       "result": "passed",
-      "durationMs": 7686
+      "durationMs": 8322
     },
     {
       "case": "remix2:consumer-parity",
@@ -123,25 +123,25 @@
       "originPreserved": true,
       "comparedWithPortless": true,
       "stopPreservesPeer": true,
-      "durationMs": 10478
+      "durationMs": 12739
     },
     {
       "case": "remix2:cleanup",
       "result": "passed",
-      "durationMs": 453
+      "durationMs": 302
     },
     {
       "case": "astro:baseline",
       "lane": "original-command",
       "result": "passed",
-      "durationMs": 7552
+      "durationMs": 9577
     },
     {
       "case": "astro:portless",
       "lane": "portless",
-      "origin": "http://example-astro.localhost:36099",
+      "origin": "http://example-astro.localhost:35651",
       "result": "passed",
-      "durationMs": 9303
+      "durationMs": 12864
     },
     {
       "case": "astro:consumer-parity",
@@ -152,54 +152,38 @@
       "originPreserved": true,
       "comparedWithPortless": true,
       "stopPreservesPeer": true,
-      "durationMs": 11950
+      "durationMs": 16048
     },
     {
       "case": "astro:cleanup",
       "result": "passed",
-      "durationMs": 453
+      "durationMs": 303
     },
     {
       "case": "nextjs14:baseline",
       "lane": "original-command",
-      "result": "passed",
-      "durationMs": 9663
-    },
-    {
-      "case": "nextjs14:portless",
-      "lane": "portless",
-      "origin": "http://example-nextjs14.localhost:43395",
-      "result": "passed",
-      "durationMs": 10930
+      "result": "failed",
+      "error": "Error",
+      "reason": "Acceptance assertion or command failed; reproduce using this scenario and the pinned recipe. Raw output remains in the ignored cache.",
+      "durationMs": 16409
     },
     {
       "case": "nextjs14:consumer-parity",
-      "lane": "packaged-benzo",
-      "applicationEdits": 0,
-      "manifestFiles": 0,
-      "result": "passed",
-      "originPreserved": true,
-      "comparedWithPortless": true,
-      "stopPreservesPeer": true,
-      "durationMs": 19412
-    },
-    {
-      "case": "nextjs14:cleanup",
-      "result": "passed",
-      "durationMs": 453
+      "result": "blocked",
+      "reason": "Original-command journey failed; Benzo parity cannot be evaluated."
     },
     {
       "case": "nextjs15:baseline",
       "lane": "original-command",
       "result": "passed",
-      "durationMs": 10772
+      "durationMs": 12373
     },
     {
       "case": "nextjs15:portless",
       "lane": "portless",
-      "origin": "http://example-nextjs15.localhost:41521",
+      "origin": "http://example-nextjs15.localhost:40397",
       "result": "passed",
-      "durationMs": 12249
+      "durationMs": 13257
     },
     {
       "case": "nextjs15:consumer-parity",
@@ -210,7 +194,7 @@
       "originPreserved": true,
       "comparedWithPortless": true,
       "stopPreservesPeer": true,
-      "durationMs": 20099
+      "durationMs": 21782
     },
     {
       "case": "nextjs15:cleanup",
@@ -221,35 +205,12 @@
       "case": "nextjs16:baseline",
       "lane": "original-command",
       "result": "passed",
-      "durationMs": 9693
-    },
-    {
-      "case": "nextjs16:portless",
-      "lane": "portless",
-      "origin": "http://example-nextjs16.localhost:38453",
-      "result": "passed",
-      "durationMs": 11447
-    },
-    {
-      "case": "nextjs16:consumer-parity",
-      "lane": "packaged-benzo",
-      "applicationEdits": 0,
-      "manifestFiles": 0,
-      "result": "passed",
-      "originPreserved": true,
-      "comparedWithPortless": true,
-      "stopPreservesPeer": true,
-      "durationMs": 11928
-    },
-    {
-      "case": "nextjs16:cleanup",
-      "result": "passed",
-      "durationMs": 454
+      "durationMs": 11178
     }
   ],
   "schemaVersion": 2,
-  "replacement": "passed-scoped-trial",
-  "execution": "completed",
+  "replacement": "not-established",
+  "execution": "interrupted",
   "reproduction": "pnpm test:compat state-in-url",
   "discovery": "unsupported",
   "discoveryDiagnostic": "The dev script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application.",
@@ -257,8 +218,15 @@
   "setup": {
     "applicationEdits": 0,
     "manifestFiles": 0,
-    "baselineCommands": ["pnpm install --frozen-lockfile", "pnpm run build"],
-    "benzoFlags": ["--cwd", "--name", "--gateway-port"],
+    "baselineCommands": [
+      "pnpm install --frozen-lockfile",
+      "pnpm run build"
+    ],
+    "benzoFlags": [
+      "--cwd",
+      "--name",
+      "--gateway-port"
+    ],
     "environmentOverrides": [],
     "upstreamShellScriptsPortable": false
   },
@@ -270,6 +238,5 @@
     "name": "portless",
     "version": "0.15.5"
   },
-  "sourceUnchanged": true,
-  "scope": "Eight example apps; upstream root Wireit orchestration and literal-origin upstream E2E suite are not replaced. Assertions are adapted from upstream, not the entire upstream test suite."
+  "interruptionReason": "Stopped after reproducing baseline failure in nextjs14; remaining lanes are incomplete evidence."
 }

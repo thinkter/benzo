@@ -1,0 +1,275 @@
+{
+  "project": "state-in-url",
+  "repository": "https://github.com/asmyshlyaev177/state-in-url.git",
+  "commit": "8edfd055ddb06da34bfaf4b9cdae50e6562d5eb9",
+  "benzoBuild": "d879d10150bff6e99ae31ab231d2752a9a9e128a8182762c50e61259db79dedc",
+  "testedAt": "2026-10-30T14:40:27.037Z",
+  "platform": {
+    "os": "linux",
+    "architecture": "x64",
+    "node": "v26.10.0"
+  },
+  "baseline": "passed",
+  "result": "passed",
+  "applicationChangesRequired": false,
+  "scenarios": [
+    {
+      "case": "react:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 3152
+    },
+    {
+      "case": "react:portless",
+      "lane": "portless",
+      "origin": "http://example-react.localhost:44853",
+      "result": "passed",
+      "durationMs": 4920
+    },
+    {
+      "case": "react:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "hmrIsolation": "passed",
+      "stopPreservesPeer": true,
+      "durationMs": 4977
+    },
+    {
+      "case": "react:cleanup",
+      "result": "passed",
+      "durationMs": 454
+    },
+    {
+      "case": "react-router6:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 4247
+    },
+    {
+      "case": "react-router6:portless",
+      "lane": "portless",
+      "origin": "http://example-react-router6.localhost:34587",
+      "result": "passed",
+      "durationMs": 6064
+    },
+    {
+      "case": "react-router6:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "stopPreservesPeer": true,
+      "durationMs": 7715
+    },
+    {
+      "case": "react-router6:cleanup",
+      "result": "passed",
+      "durationMs": 454
+    },
+    {
+      "case": "react-router7:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 4244
+    },
+    {
+      "case": "react-router7:portless",
+      "lane": "portless",
+      "origin": "http://example-react-router7.localhost:46541",
+      "result": "passed",
+      "durationMs": 6045
+    },
+    {
+      "case": "react-router7:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "stopPreservesPeer": true,
+      "durationMs": 7685
+    },
+    {
+      "case": "react-router7:cleanup",
+      "result": "passed",
+      "durationMs": 453
+    },
+    {
+      "case": "remix2:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 6155
+    },
+    {
+      "case": "remix2:portless",
+      "lane": "portless",
+      "origin": "http://example-remix2.localhost:43545",
+      "result": "passed",
+      "durationMs": 7686
+    },
+    {
+      "case": "remix2:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "stopPreservesPeer": true,
+      "durationMs": 10478
+    },
+    {
+      "case": "remix2:cleanup",
+      "result": "passed",
+      "durationMs": 453
+    },
+    {
+      "case": "astro:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 7552
+    },
+    {
+      "case": "astro:portless",
+      "lane": "portless",
+      "origin": "http://example-astro.localhost:36099",
+      "result": "passed",
+      "durationMs": 9303
+    },
+    {
+      "case": "astro:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "stopPreservesPeer": true,
+      "durationMs": 11950
+    },
+    {
+      "case": "astro:cleanup",
+      "result": "passed",
+      "durationMs": 453
+    },
+    {
+      "case": "nextjs14:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 9663
+    },
+    {
+      "case": "nextjs14:portless",
+      "lane": "portless",
+      "origin": "http://example-nextjs14.localhost:43395",
+      "result": "passed",
+      "durationMs": 10930
+    },
+    {
+      "case": "nextjs14:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "stopPreservesPeer": true,
+      "durationMs": 19412
+    },
+    {
+      "case": "nextjs14:cleanup",
+      "result": "passed",
+      "durationMs": 453
+    },
+    {
+      "case": "nextjs15:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 10772
+    },
+    {
+      "case": "nextjs15:portless",
+      "lane": "portless",
+      "origin": "http://example-nextjs15.localhost:41521",
+      "result": "passed",
+      "durationMs": 12249
+    },
+    {
+      "case": "nextjs15:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "stopPreservesPeer": true,
+      "durationMs": 20099
+    },
+    {
+      "case": "nextjs15:cleanup",
+      "result": "passed",
+      "durationMs": 453
+    },
+    {
+      "case": "nextjs16:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 9693
+    },
+    {
+      "case": "nextjs16:portless",
+      "lane": "portless",
+      "origin": "http://example-nextjs16.localhost:38453",
+      "result": "passed",
+      "durationMs": 11447
+    },
+    {
+      "case": "nextjs16:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "stopPreservesPeer": true,
+      "durationMs": 11928
+    },
+    {
+      "case": "nextjs16:cleanup",
+      "result": "passed",
+      "durationMs": 454
+    }
+  ],
+  "schemaVersion": 2,
+  "replacement": "passed-scoped-trial",
+  "execution": "completed",
+  "reproduction": "pnpm test:compat state-in-url",
+  "discovery": "unsupported",
+  "discoveryDiagnostic": "The dev script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application.",
+  "packageManager": "pnpm@10.26.0",
+  "setup": {
+    "applicationEdits": 0,
+    "manifestFiles": 0,
+    "baselineCommands": ["pnpm install --frozen-lockfile", "pnpm run build"],
+    "benzoFlags": ["--cwd", "--name", "--gateway-port"],
+    "environmentOverrides": [],
+    "upstreamShellScriptsPortable": false
+  },
+  "browser": {
+    "name": "chromium",
+    "version": "156.0.8078.4"
+  },
+  "competitor": {
+    "name": "portless",
+    "version": "0.15.5"
+  },
+  "sourceUnchanged": true,
+  "scope": "Eight example apps; upstream root Wireit orchestration and literal-origin upstream E2E suite are not replaced. Assertions are adapted from upstream, not the entire upstream test suite."
+}

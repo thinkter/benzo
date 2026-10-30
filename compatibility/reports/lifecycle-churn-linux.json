@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "kind": "local-lifecycle-fixture-validation",
+  "testedAt": "2026-10-30T19:41:36.694Z",
+  "platform": {
+    "os": "linux",
+    "arch": "x64",
+    "node": "v26.10.0"
+  },
+  "source": {
+    "kind": "uncommitted-working-tree",
+    "baseCommit": "e31a4d419ce7cdce3c0c9d3972fdebead25d5d49",
+    "runtimeSha256": "4b29a7dc3876d1c2a76eb6764651ad58df58e4c248d2d9527e5fb9fbd484ddf5",
+    "fixtureSha256": "635f881ad0db1707dfbf8bf25fced208ed3af05cfb4d0b09e4a0348e5e2cda20",
+    "tarballTested": false
+  },
+  "execution": "completed",
+  "command": "BENZO_SOAK_CYCLES=64 npm run test:soak",
+  "cycles": 64,
+  "result": "passed",
+  "scenarios": [
+    "Alternating graceful stop and launcher SIGKILL",
+    "Stable hostname and reused private listener port across restarts",
+    "Fresh launcher instance identity per restart",
+    "Stale query callback affinity rejected; fresh state routed once",
+    "Peer and unrelated listener survive churn",
+    "Forced fixture gateway SIGKILL stops launchers and owned listeners",
+    "Fresh gateway startup rejects pre-restart state",
+    "Final gateway and listener ports released"
+  ],
+  "replacement": "not-established",
+  "limitations": [
+    "Bounded fixture stress, not an overnight soak.",
+    "HTTP query-callback affinity only; no external provider authentication in this harness.",
+    "No stateful backend or database isolation journey.",
+    "Unix signal-injection test; Windows is skipped and macOS was not run.",
+    "Current working-tree CLI, not a packaged OSS consumer trial."
+  ]
+}

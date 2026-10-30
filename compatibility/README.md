@@ -10,6 +10,8 @@ pnpm install
 pnpm exec playwright install chromium
 pnpm test
 pnpm test:browser
+pnpm test:clients                # optional Go + Python fixtures; needs go, python3, openssl
+pnpm test:soak                   # optional Unix lifecycle stress; 8 cycles by default
 pnpm test:compat                  # all pinned OSS recipes
 pnpm test:compat excalidraw       # one recipe
 pnpm test:compat state-in-url     # 8 consumer examples + pinned Portless
@@ -52,13 +54,13 @@ records an Astro baseline startup synchronization failure;
 defect (BENZO-017). Fixes are followed by fresh runs, without automatic scenario
 retries or rewriting the earlier failed outcomes.
 
-The final Linux run passed all 32 state-in-url checks: original-command, Portless
-0.15.5, two-worktree Benzo parity and port cleanup for all eight examples. No
-application edits or Benzo manifest files were required. The source audit passed
-for the checkout and both worktrees. This establishes these example journeys,
-not replacement of the entire project's root orchestration or every integration.
-Sokosumi remains blocked; its HTTPS443 requirement is a source-audited capability
-gap, not an executed authenticated journey.
+An older scoped Linux run recorded 32 passing state-in-url checks; that report is
+preserved as `state-in-url-linux-before-audit.json`. The latest
+`state-in-url-linux.json` is interrupted and marks replacement `not-established`,
+after baseline/form-state and framework build problems. It does not establish a
+fresh eight-example pass. Root Wireit orchestration remains unsupported by bare
+automatic discovery. Sokosumi's authenticated baseline remains blocked. Benzo
+now has opt-in HTTPS, but its required HTTPS443 journey has not been executed.
 
 Excalidraw passed drawing in the browser at the baseline and two named worktrees,
 name collision suffixing, WebSocket-backed CSS HMR, worktree isolation, and stopping
@@ -76,6 +78,26 @@ The browser fixture suite additionally covers Vite and Next.js interaction/HMR,
 and Better Auth OAuth with one fixed callback, a real local provider enforcing
 redirect_uri and S256 PKCE, and worktree session/logout isolation. These are small
 fixtures, not substitutes for authenticated large-project trials.
+
+`test:clients` is an optional local fixture suite, separate from packaged OSS
+consumer trials. Go uses a client-local CA pool and loopback dialer to verify TLS
+trust and hostname rejection without bypassing verification; this does not prove
+OS DNS or global trust setup. Python's standard-library HTTP server is run first
+directly, then in two isolated directories with one external manifest and a
+per-checkout `benzo link`. Subsequent launches invoke bare Benzo. The suite checks
+name collisions, private ports, live content, peer survival and cleanup while
+restoring the fixture content. This demonstrates explicit non-Node integration,
+not automatic Python/Django/Uvicorn discovery or a packaged production app.
+
+`test:soak` alternates graceful stops and killed launchers while one peer and an
+unrelated listener stay live. It reuses the same hostname/private port, rejects
+old query-mode OAuth affinity, then forcibly kills its own gateway and verifies
+launcher cleanup and fresh startup. `BENZO_SOAK_CYCLES=64 pnpm test:soak` extends
+the run; accepted cycle counts are 2–1000. This is a bounded fixture stress test,
+not an overnight soak or a stateful-stack verdict. The signal-injection harness
+is skipped on Windows; native Windows cleanup remains a separate evidence gap.
+The [recorded Linux run](reports/lifecycle-churn-linux.json) completed 64 cycles
+and the forced gateway restart. It does not close the overnight-soak release gate.
 
 `reports/failures.json` tracks findings, fixes, regression coverage and remaining
 limits. Raw process output stays in `.compat/commands.log`; it is not published in
