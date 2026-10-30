@@ -1,0 +1,35 @@
+{
+  "project": "excalidraw",
+  "repository": "https://github.com/excalidraw/excalidraw.git",
+  "commit": "b99a49dbebd25fbf85ad9ae33c9e361a16d5a39e",
+  "benzoBuild": "80f534c4be9edfa7429eee4f2b96080a5d8f6191fd53c68e9ac0b5f33edd8427",
+  "testedAt": "2026-10-30T14:00:27.807Z",
+  "platform": {
+    "os": "linux",
+    "architecture": "x64",
+    "node": "v26.10.0"
+  },
+  "baseline": "passed",
+  "result": "passed",
+  "applicationChangesRequired": false,
+  "scenarios": [
+    {
+      "case": "two-worktrees-browser-drawing",
+      "result": "passed"
+    },
+    {
+      "case": "active-name-collision",
+      "result": "passed"
+    },
+    {
+      "case": "hmr-websocket-and-worktree-isolation",
+      "result": "passed"
+    },
+    {
+      "case": "stop-one-preserves-peer",
+      "result": "passed"
+    }
+  ],
+  "discovery": "passed",
+  "sourceUnchanged": true
+}
