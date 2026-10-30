@@ -53,7 +53,7 @@ async function waitState(cwd, env, timeout = 90000) {
 }
 for (const framework of ["vite", "next"])
   test(
-    `${framework}: unchanged baseline and two named apps support interaction, HMR and session-origin separation`,
+    `${framework}: baseline and literal Portless wrapper support interaction, HMR and session-origin separation`,
     { timeout: 180000 },
     async () => {
       await mkdir(join(root, ".compat"), { recursive: true });
@@ -85,7 +85,10 @@ for (const framework of ["vite", "next"])
             JSON.stringify({
               name: `benzo-${name}-fixture`,
               private: true,
-              scripts: { dev: framework === "vite" ? "vite" : "next dev" },
+              // Fixtures share preinstalled dependencies. Do not let an inherited
+              // package manager run automatic installation through that symlink.
+              packageManager: "npm@11.0.0",
+              scripts: { dev: `${name === "first" ? "portless run " : ""}${framework === "vite" ? "vite" : "next dev"}` },
             }),
           );
           if (framework === "vite") {
