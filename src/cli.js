@@ -16,7 +16,6 @@ import { associateManifest, removeAssociation } from "./association.js";
 import { runClient } from "./client.js";
 import { planProvenance } from "./plan.js";
 import { inspectPortless } from "./portless-plan.js";
-import { inspectWireit } from "./wireit.js";
 import { runGateway } from "./daemon.js";
 import {
   liveState,
@@ -78,7 +77,7 @@ function parse(argv) {
   if (result.script) result.discovery.script = result.script;
   return result;
 }
-const help = `Benzo — development servers across worktrees\n\n  benzo dev                         discover and run the existing dev script\n  benzo dev -- python -m http.server {port}\n  benzo dev --config /path/config.json\n  benzo status | urls | logs | stop | doctor\n  benzo link --config <file>        remember an external manifest for this checkout\n  benzo unlink                      restore ordinary discovery\n  benzo exec --env BASE_URL={services.web.origin} -- <command>\n  benzo inspect --from wireit        inspect declared tasks without running them\n  benzo dev --from portless         inspect a Portless script without launching\n  benzo migrate portless --dry-run   report a reversible HTTP trial plan\n  benzo describe --json             read the live environment descriptor\n  benzo config --json               show effective config (keys only)\n  benzo explain                     explain discovery and launch decisions\n\nOptions: --cwd <path> --name <name> --script <script>\n         --gateway-port <port> --env KEY=value --auth-relay --json\n\nNo application edits. No hosts-file changes. Auth responses pass through unchanged;\nlocal callback affinity and loopback redirects stay on the named worktree.\n--auth-relay remains available as an explicit relay mode. Run doctor for limits.`;
+const help = `Benzo — development servers across worktrees\n\n  benzo dev                         discover and run the existing dev script\n  benzo dev -- python -m http.server {port}\n  benzo dev --config /path/config.json\n  benzo status | urls | logs | stop | doctor\n  benzo link --config <file>        remember an external manifest for this checkout\n  benzo unlink                      restore ordinary discovery\n  benzo exec --env BASE_URL={services.web.origin} -- <command>\n  benzo dev --from portless         inspect a Portless script without launching\n  benzo migrate portless --dry-run   report a reversible HTTP trial plan\n  benzo describe --json             read the live environment descriptor\n  benzo config --json               show effective config (keys only)\n  benzo explain                     explain discovery and launch decisions\n\nOptions: --cwd <path> --name <name> --script <script>\n         --gateway-port <port> --env KEY=value --auth-relay --json\n\nNo application edits. No hosts-file changes. Auth responses pass through unchanged;\nlocal callback affinity and loopback redirects stay on the named worktree.\n--auth-relay remains available as an explicit relay mode. Run doctor for limits.`;
 async function main() {
   const options = parse(process.argv.slice(2));
   if (options.command === "_gateway") {
@@ -102,17 +101,8 @@ async function main() {
     return;
   }
   if (options.dryRun) throw new Error("--dry-run is supported only by benzo migrate portless --dry-run.");
-  if (options.command === "inspect") {
-    const allowed = new Set(["command", "cwd", "env", "discovery", "from", "script", "json"]);
-    if (options.from !== "wireit") throw new Error("Use benzo inspect --from wireit [--script dev] [--json].");
-    if (Object.keys(options).some((key) => !allowed.has(key)) || Object.keys(options.env).length || options.discovery.command)
-      throw new Error("inspect accepts only --cwd, --from, --script and --json; it never launches commands.");
-    const report = inspectWireit(options.cwd, options.script);
-    console.log(JSON.stringify(report, null, options.json ? 0 : 2));
-    if (report.status === "incomplete") process.exitCode = 1;
-    return;
-  }
-  if (options.from) throw new Error("--from is supported by benzo inspect --from wireit or read-only benzo dev --from portless.");
+  if (options.command === "inspect") throw new Error("The graph inspection command was removed from Benzo. Use an orchestrator's own CLI, then provide an explicit Benzo manifest or SDK lease.");
+  if (options.from) throw new Error("--from supports only read-only Portless inspection.");
   if (options.command === "exec") {
     const allowed = new Set(["command", "cwd", "env", "discovery"]);
     if (Object.keys(options).some((key) => !allowed.has(key)) || options.discovery.script)

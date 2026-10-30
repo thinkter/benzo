@@ -975,3 +975,19 @@ test("config and explain report inherited environment sources without exposing v
     }
   } finally { await cleanup(f, []); }
 });
+
+test("removed graph inspection and misplaced import flags fail before discovery", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "benzo-scope-"));
+  try {
+    const help = (await call(cwd, join(cwd, "home"), "--help")).stdout;
+    assert.equal(help.includes("inspect --from wireit"), false);
+    for (const args of [["inspect", "--from", "wireit"], ["dev", "--from", "wireit"], ["status", "--from", "portless"]]) {
+      await assert.rejects(call(cwd, join(cwd, "home"), ...args), error => {
+        assert.equal(error.code, 1);
+        assert.match(error.stderr, /graph inspection command was removed|--from supports only/);
+        return true;
+      });
+    }
+    assert.deepEqual(await readdir(cwd), []);
+  } finally { await rm(cwd, {recursive: true, force: true}); }
+});

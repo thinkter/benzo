@@ -14,8 +14,8 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { createGateway } from "../src/core.js";
-import { tlsFixture } from "./tls-fixture.js";
+import { createGateway } from "../../src/core.js";
+import { tlsFixture } from "../../test/tls-fixture.js";
 
 const exec = promisify(execFile);
 const cli = resolve("src/cli.js");
