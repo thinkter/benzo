@@ -12,17 +12,25 @@ export async function scenario(report, name, action, metadata = {}) {
     entry.result = "failed";
     // Assertion/Playwright messages can include response bodies or HTML.
     entry.error = error.name;
-    entry.reason = "Acceptance assertion or command failed; reproduce using this scenario and the pinned recipe. Raw output remains in the ignored cache.";
+    entry.reason =
+      "Acceptance assertion or command failed; reproduce using this scenario and the pinned recipe. Raw output remains in the ignored cache.";
     return false;
   } finally {
     entry.durationMs = Date.now() - started;
+    await report.onScenario?.();
   }
 }
 
 export function replacementVerdict(scenarios, required) {
-  if (!required.length || required.some((name) => !scenarios.some((s) => s.case === name)))
+  if (
+    !required.length ||
+    required.some((name) => !scenarios.some((s) => s.case === name))
+  )
     return "not-established";
-  return required.every((name) => scenarios.find((s) => s.case === name).result === "passed")
+  return required.every((name) => {
+    const matches = scenarios.filter((s) => s.case === name);
+    return matches.length === 1 && matches[0].result === "passed";
+  })
     ? "passed-scoped-trial"
     : "not-established";
 }

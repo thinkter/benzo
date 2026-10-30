@@ -1,0 +1,286 @@
+{
+  "project": "state-in-url",
+  "repository": "https://github.com/asmyshlyaev177/state-in-url.git",
+  "commit": "8edfd055ddb06da34bfaf4b9cdae50e6562d5eb9",
+  "benzoBuild": "9d959bcda885d21e0a908df5304d00b7da90af28e553a0328fd2b6022cd594ee",
+  "testedAt": "2026-10-30T14:32:23.368Z",
+  "platform": {
+    "os": "linux",
+    "architecture": "x64",
+    "node": "v26.10.0"
+  },
+  "baseline": "passed",
+  "result": "failed",
+  "applicationChangesRequired": false,
+  "scenarios": [
+    {
+      "case": "react:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 3135
+    },
+    {
+      "case": "react:portless",
+      "lane": "portless",
+      "origin": "http://example-react.localhost:39243",
+      "result": "passed",
+      "durationMs": 4908
+    },
+    {
+      "case": "react:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "hmrIsolation": "passed",
+      "stopPreservesPeer": true,
+      "durationMs": 5014
+    },
+    {
+      "case": "react:cleanup",
+      "result": "passed",
+      "durationMs": 454
+    },
+    {
+      "case": "react-router6:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 4232
+    },
+    {
+      "case": "react-router6:portless",
+      "lane": "portless",
+      "origin": "http://example-react-router6.localhost:38929",
+      "result": "passed",
+      "durationMs": 6057
+    },
+    {
+      "case": "react-router6:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "stopPreservesPeer": true,
+      "durationMs": 7673
+    },
+    {
+      "case": "react-router6:cleanup",
+      "result": "passed",
+      "durationMs": 454
+    },
+    {
+      "case": "react-router7:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 4247
+    },
+    {
+      "case": "react-router7:portless",
+      "lane": "portless",
+      "origin": "http://example-react-router7.localhost:44125",
+      "result": "passed",
+      "durationMs": 6064
+    },
+    {
+      "case": "react-router7:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "stopPreservesPeer": true,
+      "durationMs": 7714
+    },
+    {
+      "case": "react-router7:cleanup",
+      "result": "passed",
+      "durationMs": 453
+    },
+    {
+      "case": "remix2:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 6365
+    },
+    {
+      "case": "remix2:portless",
+      "lane": "portless",
+      "origin": "http://example-remix2.localhost:35957",
+      "result": "passed",
+      "durationMs": 7590
+    },
+    {
+      "case": "remix2:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "stopPreservesPeer": true,
+      "durationMs": 10389
+    },
+    {
+      "case": "remix2:cleanup",
+      "result": "passed",
+      "durationMs": 454
+    },
+    {
+      "case": "astro:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 7529
+    },
+    {
+      "case": "astro:portless",
+      "lane": "portless",
+      "origin": "http://example-astro.localhost:37785",
+      "result": "passed",
+      "durationMs": 9302
+    },
+    {
+      "case": "astro:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "failed",
+      "error": "Error",
+      "reason": "Acceptance assertion or command failed; reproduce using this scenario and the pinned recipe. Raw output remains in the ignored cache.",
+      "durationMs": 120064
+    },
+    {
+      "case": "astro:cleanup",
+      "result": "failed",
+      "error": "AssertionError",
+      "reason": "Acceptance assertion or command failed; reproduce using this scenario and the pinned recipe. Raw output remains in the ignored cache.",
+      "durationMs": 2
+    },
+    {
+      "case": "nextjs14:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 9563
+    },
+    {
+      "case": "nextjs14:portless",
+      "lane": "portless",
+      "origin": "http://example-nextjs14.localhost:43665",
+      "result": "passed",
+      "durationMs": 11344
+    },
+    {
+      "case": "nextjs14:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "stopPreservesPeer": true,
+      "durationMs": 21270
+    },
+    {
+      "case": "nextjs14:cleanup",
+      "result": "passed",
+      "durationMs": 453
+    },
+    {
+      "case": "nextjs15:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 10855
+    },
+    {
+      "case": "nextjs15:portless",
+      "lane": "portless",
+      "origin": "http://example-nextjs15.localhost:33939",
+      "result": "passed",
+      "durationMs": 12158
+    },
+    {
+      "case": "nextjs15:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "stopPreservesPeer": true,
+      "durationMs": 22284
+    },
+    {
+      "case": "nextjs15:cleanup",
+      "result": "passed",
+      "durationMs": 453
+    },
+    {
+      "case": "nextjs16:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 9644
+    },
+    {
+      "case": "nextjs16:portless",
+      "lane": "portless",
+      "origin": "http://example-nextjs16.localhost:46839",
+      "result": "passed",
+      "durationMs": 10889
+    },
+    {
+      "case": "nextjs16:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "stopPreservesPeer": true,
+      "durationMs": 15178
+    },
+    {
+      "case": "nextjs16:cleanup",
+      "result": "passed",
+      "durationMs": 453
+    }
+  ],
+  "schemaVersion": 2,
+  "replacement": "not-established",
+  "execution": "completed",
+  "reproduction": "pnpm test:compat state-in-url",
+  "discovery": "unsupported",
+  "discoveryDiagnostic": "The dev script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application.",
+  "packageManager": "pnpm@10.26.0",
+  "setup": {
+    "applicationEdits": 0,
+    "manifestFiles": 0,
+    "baselineCommands": ["pnpm install --frozen-lockfile", "pnpm run build"],
+    "benzoFlags": ["--cwd", "--name", "--gateway-port"],
+    "environmentOverrides": [],
+    "upstreamShellScriptsPortable": false
+  },
+  "browser": {
+    "name": "chromium",
+    "version": "156.0.8078.4"
+  },
+  "competitor": {
+    "name": "portless",
+    "version": "0.15.5"
+  },
+  "sourceUnchanged": true,
+  "scope": "Eight example apps; upstream root Wireit orchestration and literal-origin upstream E2E suite are not replaced. Assertions are adapted from upstream, not the entire upstream test suite.",
+  "followUp": {
+    "case": "astro:consumer-parity",
+    "trackingIssue": "BENZO-017",
+    "category": "benzo-launch-arguments",
+    "observation": "Duplicate --port options made Astro choose 4321/4322; readiness failed. Cleanup acceptance could not be established without ready descriptors.",
+    "change": "Reuse the unchanged scripts PORT binding and append only the host flag.",
+    "status": "resolved-in-later-run",
+    "verifiedBy": "state-in-url-linux.json",
+    "verifiedBuild": "d879d10150bff6e99ae31ab231d2752a9a9e128a8182762c50e61259db79dedc"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "project": "sokosumi",
+  "repository": "https://github.com/masumi-network/sokosumi.git",
+  "commit": "59c5275c0b5b539580d6c266a235a22fb32e3a0c",
+  "benzoBuild": "0f00e46e62a86d56b1f1b5a9adde8a45118656a5d035f07ae3347197cbb7fdc4",
+  "testedAt": "2026-10-30T14:45:22.661Z",
+  "platform": {
+    "os": "linux",
+    "architecture": "x64",
+    "node": "v26.10.0"
+  },
+  "baseline": "not-run",
+  "result": "blocked",
+  "applicationChangesRequired": null,
+  "scenarios": [
+    {
+      "case": "complete-origin-preservation",
+      "result": "failed",
+      "evidence": "pinned-wrapper-source-and-missing-benzo-tls-capability",
+      "runtimeJourneyExecuted": false,
+      "category": "missing-tls",
+      "expected": "https://web.sokosumi.localhost on implicit 443",
+      "actual": "Benzo currently exposes HTTP origins only"
+    },
+    {
+      "case": "login-core-web-session-isolation",
+      "result": "blocked",
+      "reason": "Requires a runnable isolated backend and HTTPS baseline"
+    }
+  ],
+  "schemaVersion": 2,
+  "replacement": "not-established",
+  "execution": "completed",
+  "reproduction": "pnpm test:compat sokosumi",
+  "discovery": "unsupported",
+  "discoveryDiagnostic": "The dev script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application.",
+  "reason": "No isolated PostgreSQL/auth baseline established; consumer also explicitly requires trusted HTTPS on port 443, which Benzo does not implement."
+}

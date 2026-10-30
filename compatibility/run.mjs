@@ -28,21 +28,39 @@ mkdirSync(reports, { recursive: true });
 const recipes = JSON.parse(
   readFileSync(join(root, "compatibility/recipes/projects.json"), "utf8"),
 );
-const selected = process.argv.slice(2);
+const strict = process.argv.includes("--require-pass");
+const selected = process.argv
+  .slice(2)
+  .filter((arg) => arg !== "--require-pass");
 const env = {
   ...process.env,
   BROWSER: "none",
   HUSKY: "0",
   SHARP_IGNORE_GLOBAL_LIBVIPS: "1",
   BENZO_HOME: join(cache, "home"),
-  PATH: [join(cache, "tools/node_modules/.bin"), process.env.PATH].join(
-    delimiter,
-  ),
+  PATH: [
+    join(cache, "consumer-tools/node_modules/.bin"),
+    join(cache, "tools/node_modules/.bin"),
+    process.env.PATH,
+  ].join(delimiter),
 };
 let installedCli;
 let build;
+const activeChildren = new Set();
+const cancellation = new AbortController();
+for (const signal of ["SIGINT", "SIGTERM"])
+  process.once(signal, async () => {
+    cancellation.abort(new Error("Compatibility run interrupted."));
+    process.exitCode = signal === "SIGINT" ? 130 : 143;
+    await Promise.all([...activeChildren].map((child) => stop(child)));
+  });
+function track(child) {
+  activeChildren.add(child);
+  child.once("close", () => activeChildren.delete(child));
+  return child;
+}
 async function run(command, args, cwd = process.cwd(), timeout = 600000) {
-  const child = launch(command, args, cwd, env);
+  const child = track(launch(command, args, cwd, env));
   let output = "";
   const log = createWriteStream(join(cache, "commands.log"), {
     flags: "a",
@@ -59,13 +77,18 @@ async function run(command, args, cwd = process.cwd(), timeout = 600000) {
     await new Promise((accept, reject) => {
       timer = setTimeout(() => {
         timedOut = true;
-        void stop(child).then(() => reject(new Error(`Command timed out: ${command}`)), reject);
+        void stop(child).then(
+          () => reject(new Error(`Command timed out: ${command}`)),
+          reject,
+        );
       }, timeout);
       child.once("error", reject);
       child.once("close", (code) =>
-        timedOut ? reject(new Error(`Command timed out: ${command}`)) : code === 0
-          ? accept()
-          : reject(new Error(`Command failed: ${command} (exit ${code})`)),
+        timedOut
+          ? reject(new Error(`Command timed out: ${command}`))
+          : code === 0
+            ? accept()
+            : reject(new Error(`Command failed: ${command} (exit ${code})`)),
       );
     });
     return output;
@@ -76,24 +99,33 @@ async function run(command, args, cwd = process.cwd(), timeout = 600000) {
   }
 }
 function background(command, args, cwd, additions = {}) {
-  const child = launch(command, args, cwd, { ...env, ...additions });
+  const child = track(launch(command, args, cwd, { ...env, ...additions }));
   child.output = "";
+  const log = createWriteStream(join(cache, "services.log"), {
+    flags: "a",
+    mode: 0o600,
+  });
   for (const pipe of [child.stdout, child.stderr])
-    pipe.on(
-      "data",
-      (data) => (child.output = `${child.output}${data}`.slice(-8192)),
-    );
-  child.on("error", () => {});
+    pipe.on("data", (data) => {
+      child.output = `${child.output}${data}`.slice(-8192);
+      log.write(data);
+    });
+  child.once("close", () => log.end());
+  child.on("error", (error) => {
+    child.startupError = error;
+  });
   return child;
 }
 async function waitFor(check, timeout = 120000) {
   const deadline = Date.now() + timeout;
   let last;
   while (Date.now() < deadline) {
+    cancellation.signal.throwIfAborted();
     try {
       const value = await check();
       if (value) return value;
     } catch (error) {
+      if (error.fatal) throw error;
       last = error;
     }
     await delay(150);
@@ -348,11 +380,14 @@ async function excalidraw(recipe, checkout, report) {
 }
 await packageBuild();
 if (selected.some((name) => !recipes.some((recipe) => recipe.name === name)))
-  throw new Error("Unknown compatibility recipe. Select a name from compatibility/recipes/projects.json.");
+  throw new Error(
+    "Unknown compatibility recipe. Select a name from compatibility/recipes/projects.json.",
+  );
 let failed = false;
 for (const recipe of recipes.filter(
   (recipe) => !selected.length || selected.includes(recipe.name),
 )) {
+  if (cancellation.signal.aborted) break;
   const report = {
     project: recipe.name,
     repository: recipe.repository,
@@ -370,9 +405,21 @@ for (const recipe of recipes.filter(
     scenarios: [],
     schemaVersion: 2,
     replacement: "not-established",
+    execution: "running",
+    reproduction: `pnpm test:compat ${recipe.name}`,
   };
   Object.defineProperty(report, "onFailure", {
-    value: (name, error) => appendFile(join(cache, "assertions.log"), `${name}\n${error.stack}\n`, { mode: 0o600 }),
+    value: (name, error) =>
+      appendFile(join(cache, "assertions.log"), `${name}\n${error.stack}\n`, {
+        mode: 0o600,
+      }),
+  });
+  Object.defineProperty(report, "onScenario", {
+    value: () =>
+      writeFileSync(
+        join(reports, `${recipe.name}-${process.platform}.json`),
+        `${JSON.stringify(report, null, 2)}\n`,
+      ),
   });
   try {
     const checkout = join(cache, recipe.name);
@@ -412,8 +459,19 @@ for (const recipe of recipes.filter(
         await excalidraw(recipe, checkout, report);
       else if (["state-in-url", "sokosumi"].includes(recipe.name))
         await (recipe.name === "state-in-url" ? stateInUrl : sokosumi)({
-          recipe, checkout, report, cache, root, installedCli, run, background,
-          waitFor, freePort, getState, env,
+          recipe,
+          checkout,
+          report,
+          cache,
+          root,
+          installedCli,
+          run,
+          background,
+          waitFor,
+          freePort,
+          getState,
+          env,
+          signal: cancellation.signal,
         });
       else {
         report.result = "not-run";
@@ -426,6 +484,7 @@ for (const recipe of recipes.filter(
     report.result = report.baseline === "passed" ? "failed" : "blocked";
     report.reason = error.message.replaceAll(cache, "<cache>");
   }
+  report.execution = cancellation.signal.aborted ? "interrupted" : "completed";
   writeFileSync(
     join(reports, `${recipe.name}-${process.platform}.json`),
     `${JSON.stringify(report, null, 2)}\n`,
@@ -433,5 +492,6 @@ for (const recipe of recipes.filter(
   console.log(
     `${recipe.name}: ${report.result}${report.reason ? ` — ${report.reason}` : ""}`,
   );
+  if (strict && report.result !== "passed") failed = true;
 }
-if (failed) process.exitCode = 1;
+if (failed && !cancellation.signal.aborted) process.exitCode = 1;

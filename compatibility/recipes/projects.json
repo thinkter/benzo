@@ -16,9 +16,7 @@
     "packageManager": "npm@11.19.1",
     "baselineScript": "dev",
     "journey": "document-signing",
-    "requiredTools": [
-      "docker"
-    ],
+    "requiredTools": ["docker"],
     "prerequisite": "Documented Docker/PostgreSQL setup, migrations, translation compilation and test-only auth configuration. No baseline has been established on this host."
   },
   {
@@ -28,9 +26,7 @@
     "packageManager": "pnpm@11.10.0",
     "baselineScript": "dev",
     "journey": "project-and-issue",
-    "requiredTools": [
-      "docker"
-    ],
+    "requiredTools": ["docker"],
     "prerequisite": "Documented Docker, PostgreSQL and Redis baseline plus instance-admin setup. No baseline has been established on this host."
   },
   {

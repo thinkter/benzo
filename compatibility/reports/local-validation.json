@@ -1,19 +1,19 @@
 {
-  "recordedAt": "2026-10-30T14:02:52.643Z",
+  "recordedAt": "2026-10-30T14:46:41.211Z",
   "os": "linux",
   "architecture": "x64",
-  "sourceBuild": "80f534c4be9edfa7429eee4f2b96080a5d8f6191fd53c68e9ac0b5f33edd8427",
+  "sourceBuild": "d879d10150bff6e99ae31ab231d2752a9a9e128a8182762c50e61259db79dedc",
   "core": [
     {
       "node": "20.19.0",
-      "tests": 25,
-      "passed": 25,
+      "tests": 29,
+      "passed": 29,
       "failed": 0
     },
     {
       "node": "26.10.0",
-      "tests": 25,
-      "passed": 25,
+      "tests": 29,
+      "passed": 29,
       "failed": 0
     }
   ],
@@ -32,7 +32,9 @@
   "package": {
     "installedBin": "passed",
     "exports": "passed",
-    "excalidrawTwoGitWorktrees": "passed"
+    "excalidrawTwoGitWorktrees": "passed",
+    "stateInUrlEightExamples": "passed",
+    "installedSourceModuleParity": "passed"
   },
   "cleanup": {
     "remainingHarnessGatewayRegistries": 0
@@ -48,6 +50,28 @@
   ],
   "blocked": [
     "Documenso baseline: missing Docker; automatic orchestrator discovery unsupported",
-    "Plane baseline: missing Docker; automatic orchestrator discovery unsupported"
+    "Plane baseline: missing Docker; automatic orchestrator discovery unsupported",
+    "Sokosumi: HTTPS443 is unsupported and no isolated authenticated backend baseline is established"
+  ],
+  "runtimeSha256": "18976e433bffed7bd0bd17c7a606dcf14709337b50e44f083b328fff85099695",
+  "consumer": {
+    "project": "state-in-url",
+    "report": "state-in-url-linux.json",
+    "scenarios": 32,
+    "passed": 32,
+    "sourceUnchanged": true,
+    "portlessVersion": "0.15.5",
+    "browser": {
+      "name": "chromium",
+      "version": "156.0.8078.4"
+    },
+    "wholeProjectMigration": "not-established"
+  },
+  "notes": [
+    "Core tests ran against checkout source; installed package source modules match it byte-for-byte.",
+    "Tarball hashes include evolving documentation/reports; each consumer report identifies its exact tested tarball.",
+    "Two failed consumer reports are retained; final results are a separate fresh run.",
+    "Native Windows/macOS and manual CI jobs have not been executed here.",
+    "Windows tree cleanup uses taskkill.exe; this is an exception to strict Node APIs only."
   ]
 }

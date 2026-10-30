@@ -86,6 +86,43 @@
       "status": "fixed",
       "fix": "Preserve up to one DNS label for an existing preferred name and decode TCP control streams as UTF-8.",
       "regression": "test/core.test.js: long collision names and Unicode framing"
+    },
+    {
+      "id": "BENZO-013",
+      "problem": "Remix vite:dev was treated as an unknown script, losing explicit host/strict-port forwarding.",
+      "status": "fixed",
+      "fix": "Detect Remix Vite development scripts and preserve the original command with Vite-supported flags.",
+      "regression": "test/core.test.js: zero-config discovery; compatibility state-in-url Remix lane"
+    },
+    {
+      "id": "BENZO-014",
+      "problem": "Wireit and recursive pnpm orchestration could be treated as one server; a Portless-wrapped Vite command could be wrapped twice.",
+      "status": "diagnosed-not-automatically-integrated",
+      "fix": "Detect orchestration before framework matching and reject direct Portless wrappers with a diagnostic selecting the original command.",
+      "regression": "test/core.test.js: orchestrator rejection",
+      "limitation": "A diagnostic is not zero-setup integration; root state-in-url/Sokosumi orchestration remains unsupported."
+    },
+    {
+      "id": "BENZO-015",
+      "problem": "Sokosumi explicitly requires HTTPS origins on port 443; Benzo exposes HTTP only.",
+      "status": "known-replacement-blocker",
+      "regression": "compatibility/reports/sokosumi-linux.json",
+      "limitation": "No authenticated baseline established. TLS, trust diagnostics and full service URL/cookie semantics must pass before claiming replacement."
+    },
+    {
+      "id": "BENZO-016",
+      "problem": "Nested workspace apps without their own packageManager or lockfile fell back to npm despite a pnpm workspace root.",
+      "status": "fixed",
+      "fix": "Discover the nearest ancestor package-manager declaration or lockfile while preserving package-local choices.",
+      "regression": "test/core.test.js: workspace package-manager inheritance; state-in-url Next worktree lanes"
+    },
+    {
+      "id": "BENZO-017",
+      "problem": "Astro interprets duplicate --port options as an array and falls back to 4321, so unchanged scripts already using PORT fail behind Benzo.",
+      "status": "fixed",
+      "fix": "For Astro scripts already binding --port to PORT, preserve that binding and append only the host option.",
+      "regression": "test/core.test.js: Astro PORT binding; compatibility state-in-url astro lane",
+      "limitation": "This fix targets existing supported PORT bindings. Arbitrary fixed-port wrapper scripts still need an explicit launch configuration."
     }
   ]
 }
