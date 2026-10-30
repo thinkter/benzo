@@ -1,5 +1,8 @@
 # Drop-in compatibility testing plan
 
+For prioritized fixes derived from actual Portless consumers and their
+acceptance gates, see the [replacement roadmap](replacement-roadmap.md).
+
 Status: the first implementation and trials are complete. See
 [results](../compatibility/README.md) and the
 [failure register](../compatibility/reports/failures.json) for demonstrated scope.

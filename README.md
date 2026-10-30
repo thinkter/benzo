@@ -67,6 +67,12 @@ benzo doctor              discovery, DNS and auth compatibility diagnostics
 
 Use `--json` with status, urls or doctor. Use `--cwd`, `--name`, or
 `--gateway-port` to override the checkout, public name, or shared gateway port.
+Repeat `--env KEY=value` to override an existing application setting for this
+launch. For example, `benzo dev --env APP_URL='{origin}'` supplies that service's
+public URL without editing an environment file. Launch overrides win over manifest
+values and support the same placeholders. Values are not included in status or
+doctor output; use your normal secret delivery for credentials rather than CLI
+arguments.
 The first service uses `<name>.localhost`; subsequent services use
 `<service>.<name>.localhost`. Active name collisions get numeric suffixes. Names
 and preferred slots persist across stops.
@@ -181,9 +187,11 @@ State/logs live in `~/.cache/benzo` by default; set `BENZO_HOME` to move them.
 State uses private permissions where supported. Application output can contain
 sensitive information; don't publish raw logs.
 
-Linux trials passed for packaged Benzo with Excalidraw, Vite/Next.js fixtures, and
-a Better Auth OAuth/PKCE browser fixture. Documenso and Plane are blocked by missing
-Docker prerequisites; their orchestrator scripts also need explicit service
-configuration today. Native Windows/macOS, other frameworks and external OAuth
-providers have not been demonstrated locally. See the [test results and
-reproduction instructions](compatibility/README.md).
+Linux trials passed for packaged Benzo with Excalidraw and eight state-in-url
+example apps (React, Router 6/7, Remix, Astro and Next 14/15/16), plus Vite/Next.js
+and Better Auth OAuth/PKCE browser fixtures. Consumer application files stayed
+unchanged. Root orchestration and automatic Portless migration remain unsupported.
+Sokosumi requires HTTPS443 and an authenticated backend baseline; Documenso and
+Plane are blocked by missing Docker prerequisites. Native Windows/macOS and
+external OAuth providers have not been demonstrated locally. See the [results and
+reproduction instructions](compatibility/README.md) and [replacement roadmap](docs/replacement-roadmap.md).
