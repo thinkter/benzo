@@ -1,6 +1,6 @@
 import { createServer } from "node:net";
 import { createWriteStream, mkdirSync, rmSync, statSync } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { randomUUID, X509Certificate } from "node:crypto";
 import { join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
@@ -20,12 +20,14 @@ import {
   stop,
 } from "./core.js";
 import { listen } from "./gateway.js";
+import { gatewayTransport } from "./tls.js";
 
 const daemonEntry = fileURLToPath(new URL("./cli.js", import.meta.url));
 export function gatewayDirectory(port) {
   return join(homeDirectory(), "gateways", String(port));
 }
 export async function acquireGateway(config, request, { signal } = {}) {
+  const transport = gatewayTransport(config.gateway, request.worktree);
   const directory = gatewayDirectory(config.gateway.port);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const path = join(directory, "gateway.json");
@@ -43,12 +45,17 @@ export async function acquireGateway(config, request, { signal } = {}) {
             "This gateway already uses a different control port. Use its controlPort or choose a different gateway port.",
           );
         try {
-          return await connectShared({
+          const lease = await connectShared({
             port: registry.controlPort,
-            request: { ...request, token: registry.token },
+            request: { ...request, transport: transport.identity, token: registry.token },
             signal,
             timeout: 2000,
           });
+          if ((lease.transport ?? "http") !== transport.identity) {
+            lease.socket.destroy();
+            throw new Error("Gateway transport or certificate differs. Choose a different gateway port or stop the existing gateway's launchers first.");
+          }
+          return lease;
         } catch (error) {
           if (!["ECONNREFUSED", "ECONNRESET"].includes(error.code)) throw error;
         }
@@ -82,7 +89,8 @@ export async function acquireGateway(config, request, { signal } = {}) {
           });
           child.stdin.end(
             JSON.stringify({
-              gateway: config.gateway,
+              gateway: { ...config.gateway, tls: transport.tls },
+              transport: transport.identity,
               ownerProject: request.project,
             }),
           );
@@ -114,6 +122,7 @@ export async function acquireGateway(config, request, { signal } = {}) {
 }
 
 export async function runGateway(config) {
+  const certificate = config.gateway.tls ? new X509Certificate(config.gateway.tls.cert) : undefined;
   const directory = gatewayDirectory(config.gateway.port);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const registryPath = join(directory, "gateway.json");
@@ -124,7 +133,7 @@ export async function runGateway(config) {
   const backends = new Map();
   const callbackStore = new Map();
   const gateways = [
-    createGateway({ routes, port: config.gateway.port, callbackStore }),
+    createGateway({ routes, port: config.gateway.port, callbackStore, tls: config.gateway.tls }),
   ];
   let idle;
   let stopping;
@@ -145,11 +154,29 @@ export async function runGateway(config) {
         try {
           if (request.protocol !== PROTOCOL || request.token !== token)
             return reject("Incompatible or unauthorized gateway registration.");
+          if (request.action === "attach" || request.action === "readiness") {
+            const peer = [...peers.values()].find(value => value.socket === socket);
+            if (!peer?.external) return reject("No external listener lease on this connection.");
+            const routeHost = peer.services.get(request.service);
+            if (!routeHost) return reject("Unknown service on this lease.");
+            const previous = routes.get(routeHost);
+            if (typeof request.ready !== "boolean") return reject("Readiness must be boolean.");
+            const port = request.action === "attach" ? request.port : previous.port;
+            if (!Number.isInteger(port) || port < 1 || port > 65535 ||
+                port === config.gateway.port || port === config.gateway.controlPort)
+              return reject("Invalid external listener port.");
+            // Readiness belongs to the same owner. Only attaching an upstream
+            // creates a new identity and invalidates its old OAuth state.
+            if (request.action === "readiness") previous.ready = request.ready;
+            else routes.set(routeHost, { ...previous, port, ready: request.ready });
+            socket.write(`${JSON.stringify({ protocol: PROTOCOL, updated: true, id: request.id })}\n`);
+            return;
+          }
           if (request.action === "own" || request.action === "released") {
             const peer = [...peers.values()].find(
               (value) => value.socket === socket,
             );
-            if (!peer) return reject("No active lease.");
+            if (!peer || peer.external) return reject("No process ownership lease.");
             if (request.action === "released") {
               peer.children.clear();
               return;
@@ -163,6 +190,8 @@ export async function runGateway(config) {
             return socket.end(
               `${JSON.stringify({ protocol: PROTOCOL, ready: true })}\n`,
             );
+          if ((request.transport ?? "http") !== (config.transport ?? "http"))
+            return reject("Gateway transport or certificate differs. Choose a different gateway port or stop the existing gateway's launchers first.");
           const cwd = canonicalPath(request.worktree);
           if (peers.has(cwd))
             return reject(
@@ -174,11 +203,13 @@ export async function runGateway(config) {
             request.services.length > 100
           )
             return reject("Invalid service registration.");
+          if (new Set(request.services.map(service => service.name)).size !== request.services.length)
+            return reject("Duplicate service registration.");
           for (const service of request.services)
             if (
               !/^[a-z][a-z0-9-]{0,49}$/.test(service.name) ||
               !Number.isInteger(service.port) ||
-              service.port < 1 ||
+              service.port < (request.external === true ? 0 : 1) ||
               service.port > 65535
             )
               return reject("Invalid service registration.");
@@ -187,11 +218,16 @@ export async function runGateway(config) {
             new Set([...peers.values()].map((peer) => peer.name)),
             request.baseName ?? basename(cwd),
           );
+          if (certificate && request.services.some((service, index) =>
+            !certificate.checkHost(`${index ? `${service.name}.` : ""}${name}.localhost`)))
+            return reject("The TLS certificate does not cover every allocated service hostname. Supply a matching certificate or choose a covered worktree name.");
           const peer = {
             socket,
             name,
             project: request.project,
             hosts: [],
+            external: request.external === true,
+            services: new Map(),
             children: new Set(),
             cwd,
           };
@@ -211,9 +247,11 @@ export async function runGateway(config) {
               throw new Error("Conflicting service hostname.");
             routes.set(host, {
               port: service.port,
+              ...(peer.external ? { ready: false } : {}),
               auth: request.auth ?? { mode: "pass-through" },
             });
             peer.hosts.push(host);
+            peer.services.set(service.name, host);
           }
           if (request.backend?.mode === "shared") {
             if (request.project !== config.ownerProject)
@@ -263,7 +301,7 @@ export async function runGateway(config) {
           }
           if (!socket.destroyed)
             socket.write(
-              `${JSON.stringify({ protocol: PROTOCOL, ready: true, name, gatewayPort: config.gateway.port })}\n`,
+              `${JSON.stringify({ protocol: PROTOCOL, ready: true, name, gatewayPort: config.gateway.port, transport: config.transport ?? "http" })}\n`,
             );
         } catch (error) {
           reject(error.message);
@@ -305,6 +343,7 @@ export async function runGateway(config) {
       port: config.gateway.port,
       host: "::1",
       callbackStore,
+      tls: config.gateway.tls,
     });
     try {
       await ipv6.listen();
