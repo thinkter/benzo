@@ -1,0 +1,53 @@
+[
+  {
+    "name": "excalidraw",
+    "repository": "https://github.com/excalidraw/excalidraw.git",
+    "commit": "b99a49dbebd25fbf85ad9ae33c9e361a16d5a39e",
+    "packageManager": "yarn@1.22.22",
+    "baselineScript": "start",
+    "journey": "canvas-drawing",
+    "hmrFile": "excalidraw-app/index.scss",
+    "requiredTools": []
+  },
+  {
+    "name": "documenso",
+    "repository": "https://github.com/documenso/documenso.git",
+    "commit": "503cd1aa1c7507ef8cadf476a7998bec7673f6d2",
+    "packageManager": "npm@11.19.1",
+    "baselineScript": "dev",
+    "journey": "document-signing",
+    "requiredTools": [
+      "docker"
+    ],
+    "prerequisite": "Documented Docker/PostgreSQL setup, migrations, translation compilation and test-only auth configuration. No baseline has been established on this host."
+  },
+  {
+    "name": "plane",
+    "repository": "https://github.com/makeplane/plane.git",
+    "commit": "b98e1defb0e089d4505712d89ee9e137fd0935cd",
+    "packageManager": "pnpm@11.10.0",
+    "baselineScript": "dev",
+    "journey": "project-and-issue",
+    "requiredTools": [
+      "docker"
+    ],
+    "prerequisite": "Documented Docker, PostgreSQL and Redis baseline plus instance-admin setup. No baseline has been established on this host."
+  },
+  {
+    "name": "state-in-url",
+    "repository": "https://github.com/asmyshlyaev177/state-in-url.git",
+    "commit": "8edfd055ddb06da34bfaf4b9cdae50e6562d5eb9",
+    "packageManager": "pnpm@10.26.0",
+    "baselineScript": "dev",
+    "journey": "url-state-forms-history-and-parallel-frameworks",
+    "requiredTools": []
+  },
+  {
+    "name": "sokosumi",
+    "repository": "https://github.com/masumi-network/sokosumi.git",
+    "commit": "59c5275c0b5b539580d6c266a235a22fb32e3a0c",
+    "baselineScript": "dev",
+    "journey": "core-web-auth",
+    "requiredTools": []
+  }
+]
