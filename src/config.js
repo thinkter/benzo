@@ -1,7 +1,12 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
+import { unwrapPortless } from "./portless.js";
+import { associatedManifest } from "./association.js";
+import { validateManifestShape } from "./manifest.js";
+export { manifestDiagnostics } from "./manifest.js";
 
 export const DEFAULT_MANIFEST = {
+  schemaVersion: 1,
   gateway: { port: 3000, controlPort: 2999, host: "127.0.0.1" },
   worktree: { slots: 100, firstPort: 10000, stride: 32 },
   backend: { mode: "external" },
@@ -11,6 +16,7 @@ export const DEFAULT_MANIFEST = {
 const label = /^[a-z][a-z0-9-]{0,49}$/;
 const port = (value) => Number.isInteger(value) && value > 0 && value <= 65535;
 export function validateManifest(config) {
+  validateManifestShape(config);
   if (
     !config ||
     typeof config !== "object" ||
@@ -89,6 +95,7 @@ export function validateManifest(config) {
   }
 }
 export function normalizeManifest(config) {
+  validateManifestShape(config);
   const result = {
     ...DEFAULT_MANIFEST,
     ...config,
@@ -166,19 +173,19 @@ function nestedFramework(cwd, script, depth = 0) {
   }
   return undefined;
 }
-export function discoverManifest(cwd, { script, command, args = [] } = {}) {
+function discoverInput(cwd, { script, command, args = [] } = {}) {
   if (command)
-    return normalizeManifest({
+    return {
       discovery: "command",
       services: [{ name: "web", command, args }],
-    });
+    };
   const path = join(cwd, "package.json");
   if (!existsSync(path))
     throw new Error(
       "No package.json or Benzo config found. Run benzo dev -- <your-server> [args], or use --config <file>.",
     );
   const pkg = JSON.parse(readFileSync(path, "utf8"));
-  if (pkg.benzo) return normalizeManifest(pkg.benzo);
+  if (pkg.benzo) return pkg.benzo;
   script ??= pkg.scripts?.dev ? "dev" : "start";
   if (
     typeof pkg.scripts?.[script] === "string" &&
@@ -190,6 +197,17 @@ export function discoverManifest(cwd, { script, command, args = [] } = {}) {
     throw new Error(
       `The ${script} script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application.`,
     );
+  const unwrapped = unwrapPortless(pkg, script);
+  if (unwrapped) {
+    if (pkg.portless || existsSync(join(cwd, "portless.json")))
+      throw new Error("Portless configuration requires explicit integration; use --script or an external Benzo config.");
+    return {
+      discovery: "portless-literal",
+      ...(unwrapped.name ? { name: unwrapped.name } : {}),
+      warnings: ["Running the underlying app on Benzo's HTTP origin. Portless TLS, origins and proxy settings are not imported."],
+      services: [{ name: "web", command: unwrapped.command, args: unwrapped.args }],
+    };
+  }
   if (/(?:^|\s)portless(?:\s|$)/.test(pkg.scripts?.[script] ?? ""))
     throw new Error(
       "This script already invokes Portless. Select the original application script with --script, or supply its command after --. Automatic Portless migration is not implemented.",
@@ -212,7 +230,7 @@ export function discoverManifest(cwd, { script, command, args = [] } = {}) {
     )
       flags.splice(-2);
     if (["vite", "remix"].includes(detected)) flags.push("--strictPort");
-    return normalizeManifest({
+    return {
       discovery: detected,
       services: [
         {
@@ -221,27 +239,40 @@ export function discoverManifest(cwd, { script, command, args = [] } = {}) {
           args: ["run", script, ...(manager === "npm" ? ["--"] : []), ...flags],
         },
       ],
-    });
+    };
   }
   if (pkg.scripts?.[script]) {
     if (/\bbenzo\b/.test(pkg.scripts[script]))
       throw new Error(
         "This script already invokes Benzo. Use --script to select the original application dev script.",
       );
-    return normalizeManifest({
+    return {
       discovery: "script",
       services: [{ name: "web", command: manager, args: ["run", script] }],
-    });
+    };
   }
   throw new Error(
     `No ${script} script found. Use --script <name>, benzo dev -- <command> [args], or --config <file>.`,
   );
 }
+export function discoverManifest(cwd, options = {}) {
+  return normalizeManifest(discoverInput(cwd, options));
+}
 export function loadManifest(cwd = process.cwd(), filename, options = {}) {
-  const path = resolve(cwd, filename ?? "benzo.config.json");
+  return loadManifestWithSource(cwd, filename, options).config;
+}
+export function loadManifestWithSource(cwd = process.cwd(), filename, options = {}) {
+  const associated = filename === undefined ? associatedManifest(cwd) : undefined;
+  const selected = filename ?? associated;
+  const path = resolve(cwd, selected ?? "benzo.config.json");
   if (!existsSync(path)) {
-    if (filename) throw new Error(`Missing Benzo config: ${path}`);
-    return discoverManifest(cwd, options);
+    if (selected !== undefined) throw new Error(`Missing Benzo config: ${path}${associated ? ". Update the association with benzo link --config <file>, or remove it with benzo unlink." : ""}`);
+    const input = discoverInput(cwd, options);
+    return {
+      input,
+      config: normalizeManifest(input),
+      source: options.command ? { kind: "command" } : { kind: "package", path: join(cwd, "package.json") },
+    };
   }
   let config;
   try {
@@ -249,5 +280,9 @@ export function loadManifest(cwd = process.cwd(), filename, options = {}) {
   } catch {
     throw new Error(`Could not parse Benzo config: ${path}`);
   }
-  return normalizeManifest(config);
+  return {
+    input: config,
+    config: normalizeManifest(config),
+    source: { kind: filename !== undefined ? "explicit-manifest" : associated ? "associated-manifest" : "project-manifest", path },
+  };
 }

@@ -12,8 +12,10 @@ import {
   createGateway,
   discoverManifest,
   loadManifest,
+  loadManifestWithSource,
   namedOrigin,
   normalizeManifest,
+  manifestDiagnostics,
   reservePorts,
   safeEnvironment,
   serviceCommand,
@@ -21,6 +23,8 @@ import {
   connectShared,
   PROTOCOL,
 } from "../src/core.js";
+
+import { planProvenance } from "../src/plan.js";
 
 export async function close(server) {
   await new Promise((resolve) => {
@@ -108,6 +112,42 @@ test("load manifest, expand commands and validate non-overlapping leases", async
     await rm(directory, { recursive: true, force: true });
   }
 });
+test("manifest version and raw field types fail before launch with value-free diagnostics", () => {
+  const service = { name: "web", command: "node" };
+  const base = { services: [service] };
+  assert.equal(normalizeManifest(base).schemaVersion, 1);
+  for (const config of [null, [], "secret-value", { ...base, schemaVersion: 2 },
+    ...["gateway", "worktree", "auth", "backend"].flatMap(key => [null, [], "secret-value"].map(value => ({ ...base, [key]: value }))),
+    { ...base, services: [null] }, { ...base, services: "secret-value" },
+    ...[
+      { args: null }, { args: [42] }, { cwd: 12 }, { env: [] }, { env: { TOKEN: 42 } },
+      { excludeEnv: "TOKEN" }, { excludeEnv: [12] }, { ready: "secret-value" },
+      { ready: { type: "tpc" } }, { ready: { path: "secret-value" } },
+      { ready: { path: "/health with space" } }, { ready: { status: "200" } },
+      { ready: { status: 600 } }, { ready: { timeout: 0 } }, { ready: { timeout: Infinity } },
+    ].map(fields => ({ services: [{ ...service, ...fields }] })),
+    { ...base, backend: { mode: "shared", command: "node", args: "secret-value" } },
+    { ...base, auth: { mode: "callback", upstream: "https://", pathPrefix: "/" } },
+    { ...base, auth: { pathPrefix: 42 } }, { ...base, auth: { callbackPath: "secret-value" } },
+    { ...base, backend: { mode: null } }, { ...base, auth: { mode: null } },
+  ]) {
+    assert.throws(() => normalizeManifest(config), error =>
+      error instanceof Error && !(error instanceof TypeError) && !error.message.includes("secret-value"));
+  }
+  const config = normalizeManifest({ ...base, schemaVersion: 1,
+    gateway: { prot: "secret-value" }, extension: { token: "secret-value" },
+    services: [{ ...service, ready: { timeuot: "secret-value" } }],
+  });
+  const diagnostics = manifestDiagnostics(config);
+  assert.deepEqual(diagnostics, [
+    { code: "unknown-field", path: 'manifest["extension"]' },
+    { code: "unknown-field", path: 'gateway["prot"]' },
+    { code: "unknown-field", path: 'services[0].ready["timeuot"]' },
+  ]);
+  assert.equal(JSON.stringify(diagnostics).includes("secret-value"), false);
+  assert.equal(config.extension.token, "secret-value");
+});
+
 test("zero-config discovery preserves scripts and applies documented framework flags", async () => {
   const directory = await mkdtemp(join(tmpdir(), "benzo-discovery-"));
   try {
@@ -145,11 +185,11 @@ test("zero-config discovery preserves scripts and applies documented framework f
     }
     await writeFile(
       join(directory, "package.json"),
-      JSON.stringify({ scripts: { dev: "portless run -- vite" } }),
+      JSON.stringify({ scripts: { dev: "portless run --tls vite" } }),
     );
     assert.throws(
       () => discoverManifest(directory),
-      /already invokes Portless/,
+      /Unsupported Portless wrapper/,
     );
     const nested = join(directory, "packages", "web");
     await mkdir(nested, { recursive: true });
@@ -286,6 +326,100 @@ test("gateway preserves host, POST bytes, cookies, redirects, and websocket head
     await close(app);
   }
 });
+
+test("gateway keeps absolute local redirects on the named worktree", async () => {
+  let gatewayPort;
+  const app = createServer((_req, res) =>
+    res
+      .writeHead(302, {
+        location: `http://localhost:${gatewayPort}/after-sign-in?ok=1`,
+      })
+      .end(),
+  );
+  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  const gateway = createGateway({
+    routes: new Map([["feature.localhost", app.address().port]]),
+    port: 0,
+  });
+  await gateway.listen();
+  const port = gateway.server.address().port;
+  gatewayPort = port;
+  try {
+    const result = await request(port, "/auth/callback", {
+      headers: { host: `feature.localhost:${port}` },
+    });
+    assert.equal(result.status, 302);
+    assert.equal(
+      result.headers.location,
+      `http://feature.localhost:${port}/after-sign-in?ok=1`,
+    );
+  } finally {
+    await gateway.close();
+    await close(app);
+  }
+});
+
+test("gateway leaves external absolute redirects unchanged", async () => {
+  const app = createServer((_req, res) =>
+    res.writeHead(302, { location: "https://accounts.google.com/o/oauth2/v2/auth" }).end(),
+  );
+  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  const gateway = createGateway({
+    routes: new Map([["feature.localhost", app.address().port]]),
+    port: 0,
+  });
+  await gateway.listen();
+  const port = gateway.server.address().port;
+  try {
+    const result = await request(port, "/auth/sign-in", {
+      headers: { host: `feature.localhost:${port}` },
+    });
+    assert.equal(result.headers.location, "https://accounts.google.com/o/oauth2/v2/auth");
+  } finally {
+    await gateway.close();
+    await close(app);
+  }
+});
+
+test("local sign-in and sign-out redirects stay isolated per named worktree", async () => {
+  let gatewayPort;
+  const app = createServer((req, res) => {
+    const destination = req.url.startsWith("/sign-in")
+      ? "/after-sign-in?callbackUrl=%2F"
+      : "/after-sign-out";
+    res
+      .writeHead(303, { location: `http://localhost:${gatewayPort}${destination}` })
+      .end();
+  });
+  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  const gateway = createGateway({
+    routes: new Map([
+      ["alpha.localhost", app.address().port],
+      ["beta.localhost", app.address().port],
+    ]),
+    port: 0,
+  });
+  await gateway.listen();
+  const port = gateway.server.address().port;
+  gatewayPort = port;
+  try {
+    for (const name of ["alpha", "beta"]) {
+      for (const path of ["/sign-in", "/sign-out"]) {
+        const result = await request(port, path, {
+          headers: { host: `${name}.localhost:${port}` },
+        });
+        assert.equal(
+          new URL(result.headers.location).hostname,
+          `${name}.localhost`,
+        );
+        assert.equal(new URL(result.headers.location).port, String(port));
+      }
+    }
+  } finally {
+    await gateway.close();
+    await close(app);
+  }
+});
 test("control registration handles fragmentation and rejects foreign services and early EOF", async () => {
   const server = createNetServer((socket) => {
     socket.once("data", () => {
@@ -364,4 +498,75 @@ test("control framing preserves Unicode split across TCP chunks", async () => {
   } finally {
     await close(server);
   }
+});
+
+test("literal Portless wrappers unwrap without running scripts or changing files", async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'benzo-portless-'));
+  try {
+    for (const script of ['portless run vite', 'portless run -- vite --strictPort', 'portless app next dev --turbopack', 'portless run --name app next dev']) {
+      const source = JSON.stringify({scripts:{dev:script}});
+      await writeFile(join(directory, 'package.json'), source);
+      const config = discoverManifest(directory);
+      assert.equal(config.discovery, 'portless-literal');
+      assert.ok(['vite','next'].includes(config.services[0].command));
+      assert.ok(config.services[0].args.includes('{port}'));
+      assert.equal(await import('node:fs/promises').then(fs => fs.readFile(join(directory,'package.json'),'utf8')), source);
+      assert.match(config.warnings[0], /HTTP/);
+    }
+    for (const dev of ['portless run next dev\nnode setup.js', 'portless run vite\r\nnode setup.js', 'portless run vite\rnode setup.js', 'portless run --tls vite', 'portless run vite --port 5173', 'portless run vite && echo changed', 'portless run vite $ARGS', 'portless run node custom.js', 'portless run vite build', 'portless proxy start', 'portless app next build']) {
+      await writeFile(join(directory,'package.json'), JSON.stringify({scripts:{dev}}));
+      assert.throws(() => discoverManifest(directory), /Unsupported Portless/);
+    }
+    await writeFile(join(directory,'package.json'), JSON.stringify({scripts:{dev:'portless run vite',predev:'node setup.js'}}));
+    assert.throws(() => discoverManifest(directory), /Unsupported Portless/);
+  } finally { await rm(directory,{recursive:true,force:true}); }
+});
+
+
+test("launch provenance distinguishes explicit defaults, discovery and derived control ports", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "benzo-provenance-"));
+  const options = { env: {} };
+  try {
+    await writeFile(join(cwd, "package.json"), JSON.stringify({
+      scripts: {dev: "node server.cjs"},
+      benzo: {gateway: {port: 3000}, services: [{name: "web", command: "node", ready: {timeout: 120000}}]},
+    }));
+    let loaded = loadManifestWithSource(cwd);
+    let provenance = planProvenance(loaded.input, loaded.source, options);
+    assert.equal(provenance.gateway.port, "package");
+    assert.equal(provenance.gateway.controlPort, "derived:gateway.port");
+    assert.equal(provenance.services[0].ready.timeout, "package");
+    assert.equal(provenance.services[0].ready.type, "default");
+    loaded = loadManifestWithSource(cwd, undefined, {command: "python", args: ["-m", "http.server", "{port}"]});
+    provenance = planProvenance(loaded.input, loaded.source, options);
+    assert.equal(provenance.services[0].command, "command");
+    assert.equal(provenance.gateway.port, "default");
+    await writeFile(join(cwd, "external.json"), JSON.stringify({name: "configured", gateway: {port: 4321, controlPort: 4320}, services: [{name: "api", command: "node"}]}));
+    loaded = loadManifestWithSource(cwd, "external.json");
+    provenance = planProvenance(loaded.input, loaded.source, options);
+    assert.equal(provenance.requestedName, "explicit-manifest");
+    assert.equal(provenance.gateway.controlPort, "explicit-manifest");
+    assert.equal(loaded.config.gateway.controlPort, 4320);
+  } finally {
+    await rm(cwd, {recursive: true, force: true});
+  }
+});
+
+
+test("environment provenance matches exclusion then runtime then configured override order without values", () => {
+  const inherited = {KEEP: "inherited-secret", DROP: "excluded-secret", RESTORE: "old-secret", PORT: "9000", PATH: "/private/path"};
+  const input = {services: [{name: "web", command: "secret-command", excludeEnv: ["DROP", "RESTORE", "PORT"], env: {RESTORE: "configured-secret", PORT: "1234", CUSTOM: "custom-secret"}}]};
+  const options = {env: {PORT: "5678", CLI: "cli-secret"}};
+  const plan = planProvenance(input, {kind: "explicit-manifest"}, options, inherited);
+  assert.deepEqual(plan.services[0].env, {
+    BENZO_NAME: "runtime-allocation", BENZO_ORIGIN: "runtime-allocation",
+    CLI: "--env", CUSTOM: "explicit-manifest", KEEP: "inherited-process",
+    PATH: "inherited-process", PORT: "--env", RESTORE: "explicit-manifest",
+  });
+  assert.deepEqual(plan.services[0].excludedInheritedKeys, ["DROP", "PORT", "RESTORE"]);
+  assert.equal(JSON.stringify(plan).includes("secret"), false);
+  assert.equal(JSON.stringify(plan).includes("/private/path"), false);
+  assert.deepEqual(inherited, {KEEP: "inherited-secret", DROP: "excluded-secret", RESTORE: "old-secret", PORT: "9000", PATH: "/private/path"});
+  const empty = planProvenance({services: [{name: "web", command: "node"}]}, {kind: "command"}, {env: {}}, {});
+  assert.equal(empty.services[0].env.PORT, "runtime-allocation");
 });
