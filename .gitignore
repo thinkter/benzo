@@ -1,0 +1,6 @@
+node_modules/
+.benzo/
+.compat/
+test-results/
+playwright-report/
+*.tgz

@@ -1,0 +1,44 @@
+{
+  "name": "benzo",
+  "version": "0.1.0",
+  "description": "Reusable named development servers for Git worktrees",
+  "type": "module",
+  "bin": {
+    "benzo": "src/cli.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./core": "./src/core.js"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE",
+    "docs/auth-compatibility.md",
+    "docs/compatibility-plan.md",
+    "compatibility/README.md",
+    "compatibility/reports"
+  ],
+  "scripts": {
+    "test": "node --test test/core.test.js test/auth.test.js test/runtime.test.js test/better-auth.test.js",
+    "test:watch": "node --test --watch test/core.test.js test/auth.test.js test/runtime.test.js test/better-auth.test.js",
+    "test:browser": "node --test test/browser/auth.test.js test/browser/frameworks.test.js",
+    "test:compat": "node compatibility/run.mjs"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "cross-spawn": "^7.0.6"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "better-auth": "^1.7.14",
+    "next": "^16.4.3",
+    "prettier": "^3.9.10",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "vite": "^8.3.5"
+  }
+}
