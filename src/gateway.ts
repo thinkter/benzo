@@ -1,3 +1,10 @@
+import type { IncomingMessage, ServerResponse, Server as HttpServer } from "node:http";
+import type { Socket } from "node:net";
+import type { TlsConfig } from "./types.js";
+interface Route { port: number; host?: string; auth?: { mode: string; upstream?: string; pathPrefix?: string; callbackPath?: string }; owner?: Route; ready?: boolean; }
+interface CallbackEntry { origin?: string; owner?: Route; path?: string; method?: string; expires: number; ambiguous?: boolean; }
+interface GatewayOptions { routes?: Map<string, Route | number>; port?: number; host?: string; auth?: Route["auth"]; callbackStore?: Map<string, CallbackEntry>; tls?: TlsConfig; }
+interface GatewayInstance { server: HttpServer; listen(): Promise<void>; close(): Promise<void>; }
 import { createServer, request as httpRequest } from "node:http";
 import { request as httpsRequest, createServer as createHttpsServer } from "node:https";
 import { createConnection } from "node:net";
@@ -5,9 +12,9 @@ import { createHash } from "node:crypto";
 import { effectivePort } from "./origin.js";
 import { readCallbackState } from "./callback-form.js";
 
-export function listen(server, port, host = "127.0.0.1") {
+export function listen(server: HttpServer, port: number, host = "127.0.0.1"): Promise<void> {
   return new Promise((accept, reject) => {
-    const error = (value) => reject(value);
+    const error = (value: Error): void => reject(value);
     server.once("error", error);
     server.listen({ port, host, exclusive: true }, () => {
       server.off("error", error);
@@ -15,7 +22,7 @@ export function listen(server, port, host = "127.0.0.1") {
     });
   });
 }
-function hostFor(request) {
+function hostFor(request: IncomingMessage): string | undefined {
   const host = request.headers.host;
   if (
     typeof host !== "string" ||
@@ -28,14 +35,14 @@ function hostFor(request) {
     return undefined;
   }
 }
-const stateKey = (value) => createHash("sha256").update(value).digest("hex");
+const stateKey = (value: string): string => createHash("sha256").update(value).digest("hex");
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 // Applications sometimes build absolute redirects from a fixed local base URL.
 // A response received through a named worktree must stay on that worktree, so
 // rewrite only redirects back to this gateway. External redirects and relative
 // redirects remain byte-for-byte unchanged.
-function rewriteLocalRedirect(location, request, gatewayPort, protocol) {
+function rewriteLocalRedirect(location: string | undefined, request: IncomingMessage, gatewayPort: number, protocol: "http" | "https"): string | undefined {
   if (typeof location !== "string") return location;
   try {
     const target = new URL(location);
@@ -61,7 +68,7 @@ function rewriteLocalRedirect(location, request, gatewayPort, protocol) {
 
 // Recognize only an unambiguous delay; url=URL header. Keep formatting and
 // delay intact, and leave other refresh syntax to the browser unchanged.
-function rewriteLocalRefresh(value, request, gatewayPort, protocol) {
+function rewriteLocalRefresh(value: string | undefined, request: IncomingMessage, gatewayPort: number, protocol: "http" | "https"): string | undefined {
   if (typeof value !== "string") return value;
   const match = value.match(/^([\t ]*\d+(?:\.\d+)?[\t ]*;[\t ]*url[\t ]*=[\t ]*)(?:"([^"\s]+)"|'([^'\s]+)'|([^\s"']+))([\t ]*)$/i);
   if (!match) return value;
@@ -79,11 +86,11 @@ export function createGateway({
   auth = { mode: "pass-through" },
   callbackStore,
   tls,
-} = {}) {
+}: GatewayOptions = {}): GatewayInstance {
   const protocol = tls ? "https" : "http";
-  const sockets = new Set();
+  const sockets = new Set<Socket>();
   const callbacks = callbackStore ?? new Map();
-  function observe(location, request, routeAuth, owner) {
+  function observe(location: string | undefined, request: IncomingMessage, routeAuth: Route["auth"], owner: Route | undefined): void {
     // State observation is transparent: pass-through mode keeps the upstream
     // response unchanged but still needs callback affinity for named origins.
     // The explicit callback adapter remains excluded because it owns the
@@ -136,7 +143,7 @@ export function createGateway({
       /* Not an OAuth authorization redirect. */
     }
   }
-  function relayCallback(request, response, url, state) {
+  function relayCallback(request: IncomingMessage, response: ServerResponse, url: URL, state: string): void {
     const entry = callbacks.get(stateKey(state));
     if (entry && !entry.ambiguous && entry.expires > Date.now() &&
         entry.path === url.pathname && request.method === (entry.method ?? "GET") &&
@@ -151,13 +158,13 @@ export function createGateway({
       "Benzo cannot associate this callback with an active worktree. Restart sign-in from its named URL.",
     );
   }
-  function invalidForm(request, response, status) {
+  function invalidForm(request: IncomingMessage, response: ServerResponse, status: number): void {
     if (response.destroyed) return;
     response.once("finish", () => request.destroy());
     response.writeHead(status, { "cache-control": "no-store", connection: "close" }).end("Invalid or unsupported OAuth form callback.");
     request.resume();
   }
-  function proxy(request, response, target, routeAuth) {
+  function proxy(request: IncomingMessage, response: ServerResponse, target: Route, routeAuth: NonNullable<Route["auth"]>): void {
     const authRequest =
       routeAuth.mode === "callback" &&
       request.url.startsWith(routeAuth.pathPrefix ?? "/api/auth/");
@@ -207,7 +214,7 @@ export function createGateway({
         response.writeHead(incoming.statusCode, headers);
         // Better Auth returns the authorization URL in JSON rather than Location.
         // Relay mode only observes a bounded copy; response bytes pass unchanged.
-        let collected = [];
+        let collected: Buffer[] = [];
         let size = 0;
         const observeJson =
           ["pass-through", "relay"].includes(routeAuth.mode) &&
@@ -215,7 +222,7 @@ export function createGateway({
           /^application\/json\b/.test(incoming.headers["content-type"] ?? "") &&
           !incoming.headers["content-encoding"];
         if (observeJson)
-          incoming.on("data", (chunk) => {
+          incoming.on("data", (chunk: Buffer) => {
             size += chunk.length;
             if (size <= 65536) collected.push(chunk);
             else collected = [];
@@ -248,7 +255,7 @@ export function createGateway({
     response.on("close", () => upstream.destroy());
     request.pipe(upstream);
   }
-  const handleRequest = (request, response) => {
+  const handleRequest = (request: IncomingMessage, response: ServerResponse): void => {
     const hostname = hostFor(request);
     if (
       !hostname ||
@@ -296,7 +303,7 @@ export function createGateway({
       return response.writeHead(503, { "cache-control": "no-store" }).end("Benzo: service is not ready.");
     proxy(request, response, target, target.auth ?? auth);
   };
-  const server = tls ? createHttpsServer(tls, handleRequest) : createServer(handleRequest);
+  const server = tls ? createHttpsServer({ cert: tls.cert, key: tls.key, minVersion: tls.minVersion }, handleRequest) : createServer(handleRequest);
   server.on("connection", (socket) => {
     sockets.add(socket);
     socket.once("close", () => sockets.delete(socket));
