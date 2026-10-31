@@ -12,11 +12,20 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { inspectPortless } from "../dist/portless-plan.js";
+import { inspectPortless } from "../src/portless-plan.js";
+
+function parseObject(text: string): Record<string, Json> {
+  const value: Json = JSON.parse(text);
+  assert.ok(
+    value !== null && typeof value === "object" && !Array.isArray(value),
+  );
+  return value;
+}
+type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
 const exec = promisify(execFile);
 const cli = resolve("dist/cli.js");
-async function fixture(run) {
+async function fixture(run: (root: string) => Promise<void>): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), "benzo-portless-plan-"));
   try {
     await run(root);
@@ -24,7 +33,7 @@ async function fixture(run) {
     await rm(root, { recursive: true, force: true });
   }
 }
-const pkg = (root, value) =>
+const pkg = (root: string, value: object) =>
   writeFile(join(root, "package.json"), JSON.stringify(value));
 
 test("Portless trial plans are deterministic, selected-script-only and leave all files unchanged", async () =>
@@ -43,6 +52,7 @@ test("Portless trial plans are deterministic, selected-script-only and leave all
     assert.deepEqual(report.projectChanges, []);
     assert.equal(report.automaticMigration, false);
     assert.equal(report.originPreserved, false);
+    assert.ok(report.trial);
     assert.deepEqual(report.trial.argv, [
       "benzo",
       "dev",
@@ -61,8 +71,8 @@ test("Portless trial plans are deterministic, selected-script-only and leave all
     await pkg(root, {
       scripts: { start: "portless named next dev", other: "portless run vite" },
     });
-    assert.equal(inspectPortless(root).trial.requestedName, "named");
-    assert.equal(inspectPortless(root, "other").trial.framework, "vite");
+    assert.equal(inspectPortless(root).trial?.requestedName, "named");
+    assert.equal(inspectPortless(root, "other").trial?.framework, "vite");
   }));
 
 test("Portless plans reject shell wrappers, hooks, TLS and custom flags without exposing script text", async () =>
@@ -151,19 +161,19 @@ test("CLI migration dry-run and dev inspection never launch or write state; unsa
   fixture(async (root) => {
     await pkg(root, { scripts: { dev: "portless run vite" } });
     const env = { ...process.env, BENZO_HOME: join(root, "home") };
-    const run = (args) =>
+    const run = (args: string[]) =>
       exec(process.execPath, [cli, ...args, "--cwd", root], {
         env,
         timeout: 10000,
       });
-    const first = JSON.parse(
+    const first = parseObject(
       (await run(["migrate", "portless", "--dry-run", "--json"])).stdout,
     );
-    const second = JSON.parse(
+    const second = parseObject(
       (await run(["dev", "--from", "portless", "--json"])).stdout,
     );
     assert.deepEqual(second, first);
-    assert.equal(first.status, "http-trial-available");
+    assert.equal(first["status"], "http-trial-available");
     for (const args of [
       ["migrate", "portless"],
       ["dev", "--dry-run"],
@@ -176,8 +186,11 @@ test("CLI migration dry-run and dev inspection never launch or write state; unsa
     await assert.rejects(
       run(["migrate", "portless", "--dry-run", "--json"]),
       (error) => {
+        assert.ok(error instanceof Error);
+        assert.ok("code" in error);
         assert.equal(error.code, 1);
-        assert.equal(JSON.parse(error.stdout).status, "unsupported");
+        assert.ok("stdout" in error && typeof error.stdout === "string");
+        assert.equal(parseObject(error.stdout)["status"], "unsupported");
         return true;
       },
     );
@@ -194,33 +207,39 @@ test("a saved external manifest blocks trial suggestions without changing the as
       }),
     );
     const home = join(root, "home");
-    const run = (args) =>
+    const run = (args: string[]) =>
       exec(process.execPath, [cli, ...args, "--cwd", root], {
         env: { ...process.env, BENZO_HOME: home },
         timeout: 10000,
       });
     await run(["link", "--config", manifest]);
     const files = await readdir(join(home, "associations"));
-    const receipt = join(home, "associations", files[0]);
+    const file = files[0];
+    assert.ok(file);
+    const receipt = join(home, "associations", file);
     const before = await readFile(receipt, "utf8");
     await assert.rejects(
       run(["migrate", "portless", "--dry-run", "--json"]),
       (error) => {
+        assert.ok(error instanceof Error);
+        assert.ok("code" in error);
         assert.equal(error.code, 1);
-        const report = JSON.parse(error.stdout);
-        assert.equal(report.trial, null);
+        assert.ok("stdout" in error && typeof error.stdout === "string");
+        const report = parseObject(error.stdout);
+        assert.equal(report["trial"], null);
         assert.ok(
-          report.issues.includes(
-            "associated-benzo-configuration-takes-precedence",
-          ),
+          Array.isArray(report["issues"]) &&
+            report["issues"].includes(
+              "associated-benzo-configuration-takes-precedence",
+            ),
         );
         return true;
       },
     );
     assert.equal(await readFile(receipt, "utf8"), before);
     await run(["unlink"]);
-    const report = JSON.parse(
+    const report = parseObject(
       (await run(["migrate", "portless", "--dry-run", "--json"])).stdout,
     );
-    assert.equal(report.status, "http-trial-available");
+    assert.equal(report["status"], "http-trial-available");
   }));

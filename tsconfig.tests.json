@@ -10,6 +10,7 @@
   "include": [
     "test/streaming.test.ts",
     "test/better-auth.test.ts",
-    "test/test-watch.test.ts"
+    "test/test-watch.test.ts",
+    "test/portless-plan.test.ts"
   ]
 }
