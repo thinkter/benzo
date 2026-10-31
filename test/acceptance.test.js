@@ -61,7 +61,7 @@ test("bench provenance changes with verdicts, recipes and runtime helpers", asyn
       "compatibility/acceptance.mjs",
       "compatibility/evidence.mjs",
       "compatibility/recipes/projects.json",
-      "src/process.js",
+      "src/process.ts",
       "package.json",
       "pnpm-lock.yaml",
     ];

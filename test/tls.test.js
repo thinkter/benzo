@@ -5,10 +5,10 @@ import { request as httpsRequest } from "node:https";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createGateway, normalizeManifest } from "../src/core.js";
-import { gatewayTransport } from "../src/tls.js";
+import { createGateway, normalizeManifest } from "../dist/core.js";
+import { gatewayTransport } from "../dist/tls.js";
 import { tlsFixture, secureRequest } from "./tls-fixture.js";
-import { reserveEnvironment } from "../src/sdk.js";
+import { reserveEnvironment } from "../dist/sdk.js";
 import { setTimeout as delay } from "node:timers/promises";
 
 const listen = (server) =>

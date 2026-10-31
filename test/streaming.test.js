@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer, request } from "node:http";
 import { once } from "node:events";
-import { createGateway } from "../src/gateway.js";
+import { createGateway } from "../dist/gateway.js";
 
 async function fixture(handler) {
   const app = createServer(handler).listen(0, "127.0.0.1");

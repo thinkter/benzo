@@ -14,11 +14,11 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { createGateway } from "../../src/core.js";
+import { createGateway } from "../../dist/core.js";
 import { tlsFixture } from "../../test/tls-fixture.js";
 
 const exec = promisify(execFile);
-const cli = resolve("src/cli.js");
+const cli = resolve("dist/cli.js");
 const listen = (server) =>
   new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const close = (server) =>

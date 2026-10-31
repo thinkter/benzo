@@ -6,7 +6,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
-import { createGateway } from "../../src/core.js";
+import { createGateway } from "../../dist/core.js";
 import { tlsFixture } from "../tls-fixture.js";
 
 test(

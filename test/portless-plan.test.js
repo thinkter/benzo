@@ -12,10 +12,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { inspectPortless } from "../src/portless-plan.js";
+import { inspectPortless } from "../dist/portless-plan.js";
 
 const exec = promisify(execFile);
-const cli = resolve("src/cli.js");
+const cli = resolve("dist/cli.js");
 async function fixture(run) {
   const root = await mkdtemp(join(tmpdir(), "benzo-portless-plan-"));
   try {

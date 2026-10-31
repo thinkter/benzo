@@ -135,7 +135,7 @@ the other functional journeys. No backend or orchestrator features are added to
 Benzo to make these trials pass. Raw logs remain under ignored `.compat`.
 
 Reports with `harnessInputs` fingerprint every top-level compatibility `.mjs`
-module (including scenario/verdict and evidence helpers), every `src/*.js`
+module (including scenario/verdict and evidence helpers), every `src/*.ts`
 runtime helper, the pinned project recipes, and the Benzo package/lock manifests.
 Each entry records a relative path and its SHA-256; `harnessSha256` hashes the
 compact JSON encoding of that sorted entry list. Older reports without this

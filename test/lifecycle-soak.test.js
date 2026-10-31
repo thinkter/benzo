@@ -10,7 +10,7 @@ import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 const exec = promisify(execFile);
-const cli = resolve("src/cli.js");
+const cli = resolve("dist/cli.js");
 const cycles = Number(process.env.BENZO_SOAK_CYCLES ?? 8);
 if (!Number.isInteger(cycles) || cycles < 2 || cycles > 1000)
   throw new Error("BENZO_SOAK_CYCLES must be an integer from 2 to 1000.");

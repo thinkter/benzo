@@ -16,8 +16,8 @@ import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "@playwright/test";
-import { launch, stop } from "../src/process.js";
-import { loadManifest } from "../src/config.js";
+import { launch, stop } from "../dist/process.js";
+import { loadManifest } from "../dist/config.js";
 import { harnessProvenance, refusesConnection } from "./evidence.mjs";
 import { stateInUrl, sokosumi } from "./consumers.mjs";
 
@@ -187,12 +187,12 @@ async function packageBuild() {
   ]);
   assert.equal(
     readFileSync(
-      join(cache, "install/node_modules/benzo/src/runtime.js"),
+      join(cache, "install/node_modules/benzo/dist/runtime.js"),
       "utf8",
     ),
-    readFileSync(join(root, "src/runtime.js"), "utf8"),
+    readFileSync(join(root, "dist/runtime.js"), "utf8"),
   );
-  installedCli = join(cache, "install/node_modules/benzo/src/cli.js");
+  installedCli = join(cache, "install/node_modules/benzo/dist/cli.js");
   assert.match(
     await run(process.execPath, [installedCli, "--version"]),
     /0\.1\.0/,

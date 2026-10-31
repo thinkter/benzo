@@ -243,3 +243,6 @@ Clients can use `benzo exec --env BASE_URL='{services.web.origin}' -- <command>`
 to receive an explicit URL binding from the running environment. The client must
 already support that environment variable; Benzo preserves its arguments and
 does not change the dev server's lifecycle.
+
+Development builds use strict TypeScript: run `npm run typecheck` or `npm run build`.
+The published CLI and SDK run from `dist/`; `npm test` builds before testing the compiled implementation.

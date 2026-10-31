@@ -4,7 +4,7 @@ import { createServer, request as httpRequest } from "node:http";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { toNodeHandler } from "better-auth/node";
-import { createGateway } from "../src/core.js";
+import { createGateway } from "../dist/core.js";
 const listen = (server) =>
   new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const close = (server) =>

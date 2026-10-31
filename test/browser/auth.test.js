@@ -7,7 +7,7 @@ import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { toNodeHandler } from "better-auth/node";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
-import { createGateway } from "../../src/core.js";
+import { createGateway } from "../../dist/core.js";
 const listen = (server, port = 0) =>
   new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
 const close = (server) =>

@@ -1,8 +1,8 @@
 import test from "node:test";
-import { effectivePort } from "../src/origin.js";
+import { effectivePort } from "../dist/origin.js";
 import assert from "node:assert/strict";
 import { createServer, request as httpRequest } from "node:http";
-import { createGateway } from "../src/core.js";
+import { createGateway } from "../dist/core.js";
 const listen = (server) =>
   new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const close = (server) =>

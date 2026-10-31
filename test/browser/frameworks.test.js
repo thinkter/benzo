@@ -12,9 +12,9 @@ import { resolve, join } from "node:path";
 import { createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "@playwright/test";
-import { launch, stop } from "../../src/process.js";
+import { launch, stop } from "../../dist/process.js";
 const root = resolve(".");
-const cli = resolve("src/cli.js");
+const cli = resolve("dist/cli.js");
 async function port() {
   const server = createServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));

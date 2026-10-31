@@ -10,7 +10,7 @@ export function harnessProvenance(root) {
       .filter((name) => name.endsWith(".mjs"))
       .map((name) => `compatibility/${name}`),
     ...readdirSync(join(root, "src"))
-      .filter((name) => name.endsWith(".js"))
+      .filter((name) => name.endsWith(".ts"))
       .map((name) => `src/${name}`),
     "compatibility/recipes/projects.json",
     "package.json",

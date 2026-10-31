@@ -5,7 +5,7 @@ import { join, delimiter } from "node:path";
 import { request } from "node:http";
 import { createServer } from "node:net";
 import { chromium, expect } from "@playwright/test";
-import { stop } from "../src/process.js";
+import { stop } from "../dist/process.js";
 import {
   scenario,
   replacementVerdict,

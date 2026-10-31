@@ -22,9 +22,9 @@ import {
   worktreeName,
   connectShared,
   PROTOCOL,
-} from "../src/core.js";
+} from "../dist/core.js";
 
-import { planProvenance } from "../src/plan.js";
+import { planProvenance } from "../dist/plan.js";
 
 export async function close(server) {
   await new Promise((resolve) => {

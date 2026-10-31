@@ -18,7 +18,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { tlsFixture, secureRequest } from "./tls-fixture.js";
 
 const exec = promisify(execFile);
-const cli = resolve("src/cli.js");
+const cli = resolve("dist/cli.js");
 async function unusedPort() {
   const server = createServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -825,7 +825,7 @@ test("environment descriptor is live, capability-free and distinguishes launcher
     assert.equal('controlPort' in a, false);
     // A package consumer gets the same descriptor through the supported SDK.
     const {stdout} = await exec(process.execPath, ['--input-type=module', '-e',
-      `import {getEnvironment} from ${JSON.stringify(new URL('../src/index.js', import.meta.url).href)}; console.log(JSON.stringify(await getEnvironment({cwd:process.argv[1]})));`, f.cwd],
+      `import {getEnvironment} from ${JSON.stringify(new URL('../dist/index.js', import.meta.url).href)}; console.log(JSON.stringify(await getEnvironment({cwd:process.argv[1]})));`, f.cwd],
       {env: {...process.env, BENZO_HOME: f.home}});
     assert.deepEqual(JSON.parse(stdout), a);
     await call(f.cwd, f.home, 'stop');
@@ -843,7 +843,7 @@ test("environment descriptor is live, capability-free and distinguishes launcher
 });
 
 test("external leases reserve origins, gate readiness and never stop listeners", {timeout: 30000}, async () => {
-  const {reserveEnvironment} = await import('../src/sdk.js');
+  const {reserveEnvironment} = await import('../dist/sdk.js');
   const f = await fixture();
   const secondCwd = join(f.root, 'second');
   await mkdir(secondCwd);
@@ -906,7 +906,7 @@ test("external leases reserve origins, gate readiness and never stop listeners",
 });
 
 test("external readiness updates preserve OAuth affinity but reattachment invalidates it", {timeout: 30000}, async () => {
-  const {reserveEnvironment} = await import('../src/sdk.js');
+  const {reserveEnvironment} = await import('../dist/sdk.js');
   const f = await fixture();
   const previousHome = process.env.BENZO_HOME;
   process.env.BENZO_HOME = f.home;
