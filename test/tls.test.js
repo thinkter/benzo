@@ -277,3 +277,28 @@ test(
     }
   },
 );
+
+test("gateway preserves caller TLS client-authentication and version policy", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "benzo-tls-policy-"));
+  let gateway;
+  try {
+    const fixture = await tlsFixture(directory);
+    gateway = createGateway({ port: 0, tls: {
+      cert: fixture.cert, key: fixture.key, ca: fixture.cert,
+      requestCert: true, rejectUnauthorized: true, maxVersion: "TLSv1.2",
+    } });
+    await gateway.listen();
+    const port = gateway.server.address().port;
+    const request = (identity) => new Promise((resolve, reject) => {
+      const req = httpsRequest({
+        host: "127.0.0.1", port, ca: fixture.cert, ...identity,
+      }, res => { const protocol = res.socket.getProtocol(); res.resume(); res.once("end", () => resolve(protocol)); });
+      req.on("error", reject); req.end();
+    });
+    await assert.rejects(request({}));
+    assert.equal(await request({ cert: fixture.cert, key: fixture.key }), "TLSv1.2");
+  } finally {
+    await gateway?.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

@@ -49,13 +49,15 @@ export function validateManifestShape(
   const backend = config["backend"] as Raw | undefined;
   if (
     backend?.["mode"] !== undefined &&
-    !["shared", "external", "none"].includes(String(backend["mode"]))
+    (typeof backend["mode"] !== "string" ||
+      !["shared", "external", "none"].includes(backend["mode"]))
   )
     fail("backend.mode", "shared, external, or none");
   const auth = config["auth"] as Raw | undefined;
   if (
     auth?.["mode"] !== undefined &&
-    !["pass-through", "callback", "relay"].includes(String(auth["mode"]))
+    (typeof auth["mode"] !== "string" ||
+      !["pass-through", "callback", "relay"].includes(auth["mode"]))
   )
     fail("auth.mode", "pass-through, callback, or relay");
   const gateway = config["gateway"] as Raw | undefined;
@@ -86,7 +88,8 @@ export function validateManifestShape(
       }
       if (
         ready["type"] !== undefined &&
-        !["http", "tcp"].includes(String(ready["type"]))
+        (typeof ready["type"] !== "string" ||
+          !["http", "tcp"].includes(ready["type"]))
       )
         fail(`${path}.ready.type`, "http or tcp");
       if (

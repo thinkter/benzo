@@ -46,7 +46,7 @@ export function namedOrigin(
 }
 export function namedOrigins(
   name: string,
-  services: ServiceConfig[],
+  services: ReadonlyArray<Pick<ServiceConfig, "name">>,
   port = 3000,
   protocol = "http",
 ): Record<string, string> {
@@ -131,7 +131,7 @@ export async function reservePorts(
 }
 export function logLine(
   line: string,
-  colour: number | undefined,
+  colour: number | undefined = undefined,
   stream: import("node:stream").Writable & { isTTY?: boolean } = process.stdout,
   env: NodeJS.ProcessEnv = process.env,
 ): void {

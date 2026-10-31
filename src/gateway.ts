@@ -30,7 +30,7 @@ interface GatewayOptions {
   host?: string;
   auth?: Route["auth"];
   callbackStore?: Map<string, CallbackEntry>;
-  tls?: import("node:tls").SecureContextOptions | undefined;
+  tls?: import("node:https").ServerOptions | undefined;
 }
 interface GatewayInstance {
   server: HttpServer;
@@ -153,7 +153,7 @@ export function createGateway({
     return address.port;
   }
   const sockets = new Set<Socket>();
-  const callbacks = callbackStore ?? new Map();
+  const callbacks = callbackStore ?? new Map<string, CallbackEntry>();
   function observe(
     location: string | undefined,
     request: IncomingMessage,
@@ -403,7 +403,16 @@ export function createGateway({
         if (url.search !== "") return invalidForm(request, response, 400);
         void readCallbackState(request).then(
           (state) => relayCallback(request, response, url, state),
-          (error) => invalidForm(request, response, error.status ?? 400),
+          (error: object | null) =>
+            invalidForm(
+              request,
+              response,
+              error instanceof Error &&
+                "status" in error &&
+                typeof error.status === "number"
+                ? error.status
+                : 400,
+            ),
         );
         return;
       }
@@ -432,10 +441,7 @@ export function createGateway({
     proxy(request, response, target, target.auth ?? auth);
   };
   const server = tls
-    ? createHttpsServer(
-        { cert: tls.cert, key: tls.key, minVersion: tls.minVersion },
-        handleRequest,
-      )
+    ? createHttpsServer(tls, handleRequest)
     : createServer(handleRequest);
   server.on("connection", (socket) => {
     sockets.add(socket);

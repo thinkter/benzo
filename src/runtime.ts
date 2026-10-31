@@ -1,3 +1,4 @@
+import { supervisorState, jsonObject } from "./wire.js";
 import type { ChildProcess } from "node:child_process";
 import type { WriteStream } from "node:fs";
 import type {
@@ -41,9 +42,19 @@ import { listen } from "./gateway.js";
 
 export function supervisorRequest(
   state: Pick<RuntimeState, "controlPort" | "token">,
+  action?: "status",
+  timeout?: number,
+): Promise<Omit<RuntimeState, "token">>;
+export function supervisorRequest(
+  state: Pick<RuntimeState, "controlPort" | "token">,
+  action: "stop",
+  timeout?: number,
+): Promise<void>;
+export function supervisorRequest(
+  state: Pick<RuntimeState, "controlPort" | "token">,
   action = "status",
   timeout = 2000,
-): Promise<Omit<RuntimeState, "token">> {
+): Promise<Omit<RuntimeState, "token"> | void> {
   return new Promise((accept, reject) => {
     const request = httpRequest(
       {
@@ -66,7 +77,10 @@ export function supervisorRequest(
           if (response.statusCode !== 200)
             return reject(new Error("Benzo supervisor authentication failed."));
           try {
-            accept(JSON.parse(body));
+            if (action === "stop") {
+              jsonObject(body);
+              accept();
+            } else accept(supervisorState(body));
           } catch {
             reject(new Error("Invalid supervisor response."));
           }
@@ -239,7 +253,7 @@ export async function runDev(
       preferred["slot"] < slots.length
     )
       slots.unshift(preferred["slot"]);
-    let allocation;
+    let allocation: ReturnType<typeof configuration> | undefined;
     for (const slot of new Set(slots)) {
       try {
         allocation = configuration(slot, config);
@@ -261,6 +275,13 @@ export async function runDev(
       throw new Error(
         "All Benzo internal port slots are occupied. benzo doctor reports the configured range.",
       );
+    const allocatedPorts = allocation.ports;
+    const servicePort = (name: string): number => {
+      const port = allocatedPorts[name];
+      if (port === undefined)
+        throw new Error("Missing allocated service port.");
+      return port;
+    };
     if (cancellation.signal.aborted) return;
     lease = await acquireGateway(
       config,
@@ -277,7 +298,7 @@ export async function runDev(
         baseName: options.name ?? config.name ?? worktreeName(basename(cwd)),
         services: config.services.map((service) => ({
           name: service.name,
-          port: allocation.ports[service.name],
+          port: servicePort(service.name),
         })),
         auth: config.auth,
         backend: { mode: config.backend.mode },
@@ -330,7 +351,7 @@ export async function runDev(
       if (cancellation.signal.aborted) break;
       const origin = urls[service.name];
       if (!origin) throw new Error("Missing allocated origin.");
-      const port = allocation.ports[service.name];
+      const port = servicePort(service.name);
       const context = {
         port: String(port),
         name: lease.name,
@@ -408,7 +429,7 @@ export async function runDev(
         while (!cancellation.signal.aborted) {
           try {
             await probe(
-              allocation.ports[service.name],
+              servicePort(service.name),
               service,
               cancellation.signal,
             );

@@ -991,3 +991,43 @@ test("removed graph inspection and misplaced import flags fail before discovery"
     assert.deepEqual(await readdir(cwd), []);
   } finally { await rm(cwd, {recursive: true, force: true}); }
 });
+
+test("invalid explicit gateway ports fail instead of selecting default", async () => {
+  for (const port of ["0", "not-a-port", "65536", "-1", "1.5"]) {
+    await assert.rejects(exec(process.execPath, [cli, "config", "--json", "--gateway-port", port, "--", "node"]));
+  }
+});
+
+test("CommonJS package consumers retain both exports", async () => {
+  for (const name of ["benzo", "benzo/core"]) {
+    const {stdout} = await exec(process.execPath, ["-e", `console.log(typeof require(${JSON.stringify(name)}).namedOrigins)`], {cwd: resolve(".")});
+    assert.equal(stdout.trim(), "function");
+  }
+});
+
+test("supervisor rejects malformed wire state but accepts stop acknowledgments", async () => {
+  const { supervisorRequest } = await import("../dist/runtime.js");
+  const valid = {
+    protocol: "benzo/1", instanceId: "instance", projectId: "project", worktreeId: "worktree",
+    name: "feature", status: "ready", startedAt: new Date().toISOString(), slot: 0,
+    urls: {web: "http://feature.localhost:3000"}, ports: {web: 10001},
+    logs: {web: "/tmp/web.log"}, controlPort: 2999, gateway: 3000,
+  };
+  let response = valid;
+  const server = createServer((_req, res) => res.end(JSON.stringify(response)));
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const state = {controlPort: server.address().port, token: "test"};
+  try {
+    assert.deepEqual(await supervisorRequest(state), valid);
+    for (const change of [{name: []}, {ports: {web: "not-a-port"}}, {ports: {web: 0}}, {ports: {}}]) {
+      response = {...valid, ...change};
+      await assert.rejects(supervisorRequest(state), /Invalid supervisor response/);
+    }
+    response = {};
+    assert.equal(await supervisorRequest(state, "stop"), undefined);
+    await assert.rejects(supervisorRequest(state), /Invalid supervisor response/);
+  } finally {
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+  }
+});

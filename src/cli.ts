@@ -253,7 +253,7 @@ async function main() {
     options.config,
     options.discovery,
   );
-  if (options["gateway-port"])
+  if (options["gateway-port"] !== undefined)
     config = normalizeManifest({
       ...config,
       gateway: {

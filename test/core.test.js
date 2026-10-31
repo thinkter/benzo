@@ -570,3 +570,21 @@ test("environment provenance matches exclusion then runtime then configured over
   const empty = planProvenance({services: [{name: "web", command: "node"}]}, {kind: "command"}, {env: {}}, {});
   assert.equal(empty.services[0].env.PORT, "runtime-allocation");
 });
+
+test("readiness and auth enums reject coercible arrays", () => {
+  for (const ready of [{type: ["tcp"]}, {type: ["http"]}])
+    assert.throws(() => normalizeManifest({ services: [{name: "web", command: "node", ready}] }));
+  for (const auth of [{mode: ["relay"]}, {mode: ["callback"]}])
+    assert.throws(() => normalizeManifest({ services: [{name: "web", command: "node"}], auth }));
+});
+
+test("control response rejects malformed declared fields", async () => {
+  for (const fields of [{name: []}, {name: "feature", transport: 42}]) {
+    const server = createNetServer(socket => socket.once("data", () => socket.end(
+      JSON.stringify({protocol: PROTOCOL, ready: true, ...fields}) + "\n"
+    )));
+    await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+    try { await assert.rejects(connectShared({port: server.address().port}), /Invalid Benzo gateway response/); }
+    finally { await close(server); }
+  }
+});

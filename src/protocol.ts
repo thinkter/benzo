@@ -1,3 +1,4 @@
+import { jsonObject } from "./wire.js";
 import type { Socket } from "node:net";
 import type { ControlResponse, JsonObject } from "./types.js";
 import { createConnection } from "node:net";
@@ -28,7 +29,7 @@ export function receiveMessage(
         socket.off("data", onData);
       }
       try {
-        callback(JSON.parse(line));
+        callback(jsonObject(line));
       } catch {
         socket.destroy();
         return;
@@ -95,9 +96,13 @@ export function connectShared({
         return fail(new Error(message["error"]));
       if (message["ready"] !== true)
         return fail(new Error("Invalid Benzo gateway response."));
+      const name = message["name"];
+      const transport = message["transport"] ?? "http";
+      if (typeof name !== "string" || typeof transport !== "string")
+        return fail(new Error("Invalid Benzo gateway response."));
       settled = true;
       clean();
-      accept({ ...message, socket } as ControlResponse);
+      accept({ protocol: PROTOCOL, ready: true, name, transport, socket });
     });
   });
 }
