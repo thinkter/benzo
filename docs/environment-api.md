@@ -99,6 +99,11 @@ command's process group, including ordinary descendants; children that explicitl
 detach into another group are outside that ownership. The group is also cleaned
 up when the command exits. Native Windows process-tree behavior
 uses the existing `taskkill.exe` helper and remains unverified on Windows.
+On Unix, signal errors other than a vanished group are reported as cleanup
+failures. After escalation, Benzo waits up to five seconds for termination.
+Linux uses `/proc` to distinguish zombies from running processes; other Unix
+systems wait for the group to disappear. No external `ps` command is required.
+If termination cannot be verified, cleanup reports failure rather than success.
 
 `exec` owns only its client command; it never starts, restarts, or stops the dev
 environment. The descriptor is a startup snapshot, not a lease: a later dev

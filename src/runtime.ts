@@ -208,7 +208,18 @@ export async function runDev(
   function shutdown() {
     return (shutdownPromise ??= (async () => {
       cancellation.abort();
-      await Promise.all(children.map((child) => stop(child)));
+      await Promise.all(
+        children.map(async (child) => {
+          try {
+            await stop(child);
+          } catch (error) {
+            failure ??=
+              error instanceof Error
+                ? error
+                : new Error("Process cleanup failed.");
+          }
+        }),
+      );
       for (const stream of streams)
         await new Promise<void>((accept) => stream.end(accept));
       if (lease && !lease.socket.destroyed) {

@@ -242,7 +242,14 @@ test(
         report: () => {},
       });
       const pid = Number(await waitForFile(join(cwd, "grandchild-pid")));
-      await watcher.close();
+      const previousPath = process.env["PATH"];
+      try {
+        process.env["PATH"] = "";
+        await watcher.close();
+      } finally {
+        if (previousPath === undefined) delete process.env["PATH"];
+        else process.env["PATH"] = previousPath;
+      }
       // Orphans may remain as zombies under a container init that does not reap.
       // They must have stopped executing when close resolves, with no grace delay.
       const { stdout } = await promisify(execFile)("ps", [
@@ -259,6 +266,45 @@ test(
     } finally {
       await watcher?.close();
       await rm(cwd, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "stop surfaces signal permission failures at every termination stage",
+  {
+    skip: process.platform === "win32",
+  },
+  async (t) => {
+    const { stop } = await import("#production/process");
+    for (const denied of ["SIGTERM", 0, "SIGKILL"] as const) {
+      const failure = Object.assign(new Error("permission denied"), {
+        code: "EPERM",
+      });
+      const mock = t.mock.method(
+        process,
+        "kill",
+        (_pid: number, signal?: string | number) => {
+          if (signal === denied) throw failure;
+          return true;
+        },
+      );
+      try {
+        await assert.rejects(
+          stop(123456789, { timeout: 0 }),
+          (error: Error) => error === failure,
+        );
+      } finally {
+        mock.mock.restore();
+      }
+    }
+    const mock = t.mock.method(process, "kill", () => {
+      throw Object.assign(new Error("gone"), { code: "ESRCH" });
+    });
+    try {
+      await stop(123456789);
+    } finally {
+      mock.mock.restore();
     }
   },
 );

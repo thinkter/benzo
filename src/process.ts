@@ -1,6 +1,5 @@
 import type { ChildProcess, SpawnOptions } from "node:child_process";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { readdir, readFile } from "node:fs/promises";
 import crossSpawn from "cross-spawn";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -67,16 +66,20 @@ export async function stop(
   }
   try {
     process.kill(-pid, "SIGTERM");
-  } catch {
-    return;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ESRCH")
+      return;
+    throw error;
   }
   // A leader may exit while grandchildren remain, so check the group, not PID.
   const deadline = Date.now() + timeout;
   do {
     try {
       process.kill(-pid, 0);
-    } catch {
-      return;
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ESRCH")
+        return;
+      throw error;
     }
     await delay(40);
   } while (Date.now() < deadline);
@@ -106,18 +109,43 @@ async function groupHasRunningProcesses(group: number): Promise<boolean> {
       return false;
     throw error;
   }
-  const { stdout } = await promisify(execFile)(
-    "ps",
-    ["-A", "-o", "pgid=", "-o", "stat="],
-    { timeout: 2000 },
-  );
-  return stdout.split("\n").some((line) => {
-    const [pgid, state] = line.trim().split(/\s+/);
-    return (
-      Number(pgid) === group &&
-      state !== undefined &&
-      !state.startsWith("Z") &&
-      !state.startsWith("X")
-    );
-  });
+  // Without process inspection, keep waiting for ESRCH; never infer success
+  // from missing tooling or permission to inspect another process.
+  if (process.platform !== "linux") return true;
+  let entries: string[];
+  try {
+    entries = await readdir("/proc");
+  } catch {
+    return true;
+  }
+  let observedGroup = false;
+  for (const pid of entries) {
+    if (!/^\d+$/.test(pid)) continue;
+    let stat: string;
+    try {
+      stat = await readFile(`/proc/${pid}/stat`, "utf8");
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        (error.code === "ENOENT" || error.code === "ESRCH")
+      )
+        continue;
+      return true;
+    }
+    // comm is parenthesized and may itself contain spaces or parentheses.
+    const end = stat.lastIndexOf(")");
+    if (end < 0) return true;
+    const [state, , pgid] = stat
+      .slice(end + 1)
+      .trim()
+      .split(/\s+/);
+    if (state === undefined || pgid === undefined || !/^\d+$/.test(pgid))
+      return true;
+    if (Number(pgid) === group) {
+      observedGroup = true;
+      if (state !== "Z" && state !== "X") return true;
+    }
+  }
+  return !observedGroup;
 }

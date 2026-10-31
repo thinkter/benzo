@@ -84,6 +84,16 @@ export function watchTests(options: {
       await exited;
     })());
   }
+  async function closeAndReport(): Promise<void> {
+    try {
+      await close();
+    } catch (error) {
+      process.exitCode = 1;
+      report(
+        error instanceof Error ? error.message : "Watcher cleanup failed.",
+      );
+    }
+  }
   try {
     for (const path of options.paths) {
       const target = join(options.cwd, path);
@@ -97,13 +107,13 @@ export function watchTests(options: {
       watcher.on("error", (error: Error) => {
         report(`Watch failed: ${error.message}`);
         process.exitCode = 1;
-        void close();
+        void closeAndReport();
       });
       watchers.push(watcher);
     }
     run();
   } catch (error) {
-    void close();
+    void closeAndReport();
     throw error;
   }
   return { close };
@@ -136,7 +146,16 @@ if (
   });
   const shutdown = (code: number): void => {
     process.exitCode = code;
-    void watcher.close();
+    void (async () => {
+      try {
+        await watcher.close();
+      } catch (error) {
+        process.exitCode = 1;
+        console.error(
+          error instanceof Error ? error.message : "Watcher cleanup failed.",
+        );
+      }
+    })();
   };
   process.once("SIGINT", () => shutdown(130));
   process.once("SIGTERM", () => shutdown(143));
