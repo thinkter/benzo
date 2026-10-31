@@ -6,7 +6,11 @@ import { request } from "node:http";
 import { createServer } from "node:net";
 import { chromium, expect } from "@playwright/test";
 import { stop } from "../src/process.js";
-import { scenario, replacementVerdict } from "./acceptance.mjs";
+import {
+  scenario,
+  replacementVerdict,
+  configuredVerdict,
+} from "./acceptance.mjs";
 
 const examples = [
   "react",
@@ -474,7 +478,7 @@ export async function stateInUrl(h) {
       ? "partial"
       : "passed";
   report.configured = {
-    result: report.result,
+    result: configuredVerdict(report.scenarios, selected),
     scope: "selected example apps, not the repository root",
     selectedApps: selected,
     argv: [

@@ -34,3 +34,18 @@ export function replacementVerdict(scenarios, required) {
     ? "passed-scoped-trial"
     : "not-established";
 }
+
+// A competitor failure invalidates comparison, not a separately measured Benzo lane.
+export function configuredVerdict(scenarios, apps) {
+  const required = apps.flatMap((app) => [
+    `${app}:baseline`,
+    `${app}:consumer-parity`,
+    `${app}:cleanup`,
+  ]);
+  if (replacementVerdict(scenarios, required) === "passed-scoped-trial")
+    return "passed";
+  const relevant = scenarios.filter((entry) => required.includes(entry.case));
+  if (relevant.some((entry) => entry.result === "failed")) return "failed";
+  if (relevant.some((entry) => entry.result === "blocked")) return "blocked";
+  return "not-established";
+}

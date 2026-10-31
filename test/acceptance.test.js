@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { scenario, replacementVerdict } from "../compatibility/acceptance.mjs";
+import {
+  scenario,
+  replacementVerdict,
+  configuredVerdict,
+} from "../compatibility/acceptance.mjs";
 
 test("replacement acceptance never treats missing, blocked or failed cases as passes", async () => {
   const report = { scenarios: [] };
@@ -103,3 +107,27 @@ for (const host of ["127.0.0.1", "::1"]) {
     assert.equal(await refusesConnection(port, host), true);
   });
 }
+
+test("configured Benzo verdict is independent of competitor failure but requires baseline and cleanup", () => {
+  const scenarios = [
+    { case: "app:baseline", result: "passed" },
+    { case: "app:consumer-parity", result: "passed" },
+    { case: "app:cleanup", result: "passed" },
+    { case: "app:portless", result: "failed" },
+  ];
+  assert.equal(configuredVerdict(scenarios, ["app"]), "passed");
+  assert.equal(
+    replacementVerdict(
+      scenarios,
+      scenarios.map((s) => s.case),
+    ),
+    "not-established",
+  );
+  assert.equal(
+    configuredVerdict(scenarios.slice(1), ["app"]),
+    "not-established",
+  );
+  scenarios[2].result = "failed";
+  assert.equal(configuredVerdict(scenarios, ["app"]), "failed");
+  assert.equal(configuredVerdict([], []), "not-established");
+});
