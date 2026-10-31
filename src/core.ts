@@ -9,7 +9,10 @@ export * from "./process.js";
 export * from "./state.js";
 export * from "./protocol.js";
 
-export function worktreeName(value: string | undefined, maxLength = 50): string {
+export function worktreeName(
+  value: string | undefined,
+  maxLength = 50,
+): string {
   return (
     String(value ?? "")
       .toLowerCase()
@@ -19,7 +22,11 @@ export function worktreeName(value: string | undefined, maxLength = 50): string 
       .replace(/-+$/g, "") || "worktree"
   );
 }
-export function availableName(preferred: string, occupied: Set<string>, baseName = preferred): string {
+export function availableName(
+  preferred: string,
+  occupied: Set<string>,
+  baseName = preferred,
+): string {
   const desired = worktreeName(preferred, 63);
   if (!occupied.has(desired)) return desired;
   const base = worktreeName(baseName);
@@ -29,10 +36,20 @@ export function availableName(preferred: string, occupied: Set<string>, baseName
     if (!occupied.has(name)) return name;
   }
 }
-export function namedOrigin(name: string, service: string | undefined, port = 3000, protocol = "http"): string {
+export function namedOrigin(
+  name: string,
+  service: string | undefined,
+  port = 3000,
+  protocol = "http",
+): string {
   return `${protocol}://${service ? `${service}.` : ""}${name}.localhost:${port}`;
 }
-export function namedOrigins(name: string, services: ServiceConfig[], port = 3000, protocol = "http"): Record<string, string> {
+export function namedOrigins(
+  name: string,
+  services: ServiceConfig[],
+  port = 3000,
+  protocol = "http",
+): Record<string, string> {
   return Object.fromEntries(
     services.map((service, index) => [
       service.name,
@@ -40,7 +57,10 @@ export function namedOrigins(name: string, services: ServiceConfig[], port = 300
     ]),
   );
 }
-export function configuration(slot: number, manifest: Manifest = { services: [] }): { slot: number; lock: number; ports: Record<string, number> } {
+export function configuration(
+  slot: number,
+  manifest: Manifest = { services: [] },
+): { slot: number; lock: number; ports: Record<string, number> } {
   const {
     slots = 100,
     firstPort = 10000,
@@ -68,25 +88,42 @@ export function expand(value: string, context: Record<string, string>): string {
       )
     : value;
 }
-export function serviceCommand(service: ServiceConfig, context: Record<string, string>): { command: string; args: string[] } {
+export function serviceCommand(
+  service: ServiceConfig,
+  context: Record<string, string>,
+): { command: string; args: string[] } {
   return {
     command: expand(service.command, context),
     args: (service.args ?? []).map((arg) => expand(arg, context)),
   };
 }
-export async function reservePorts(ports: number[], host = "127.0.0.1"): Promise<(all?: boolean) => Promise<void>> {
+export async function reservePorts(
+  ports: number[],
+  host = "127.0.0.1",
+): Promise<(all?: boolean) => Promise<void>> {
   const handles: Server[] = [];
   const close = (list: Server[]): Promise<void[]> =>
-    Promise.all(list.map((server) => new Promise<void>((accept) => {
-      try { server.close(() => accept()); } catch { accept(); }
-    })));
+    Promise.all(
+      list.map(
+        (server) =>
+          new Promise<void>((accept) => {
+            try {
+              server.close(() => accept());
+            } catch {
+              accept();
+            }
+          }),
+      ),
+    );
   try {
     for (const port of ports) {
       const server = createServer();
       handles.push(server);
       await listen(server, port, host);
     }
-    return async (all = false): Promise<void> => { await close(handles.splice(all ? 0 : 1)); };
+    return async (all = false): Promise<void> => {
+      await close(handles.splice(all ? 0 : 1));
+    };
   } catch (error) {
     await close(handles);
     throw error;
@@ -95,13 +132,13 @@ export async function reservePorts(ports: number[], host = "127.0.0.1"): Promise
 export function logLine(
   line: string,
   colour: number | undefined,
-  stream: NodeJS.WriteStream = process.stdout,
+  stream: import("node:stream").Writable & { isTTY?: boolean } = process.stdout,
   env: NodeJS.ProcessEnv = process.env,
 ): void {
   stream.write(
     stream.isTTY &&
       !Object.hasOwn(env, "NO_COLOR") &&
-      env.TERM !== "dumb" &&
+      env["TERM"] !== "dumb" &&
       colour
       ? `\x1b[${colour}m${line}\x1b[0m`
       : stripVTControlCharacters(line),

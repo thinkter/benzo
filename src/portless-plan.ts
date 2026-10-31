@@ -1,4 +1,24 @@
-interface PortlessPlan { schemaVersion: 1; kind: "portless-adoption-plan"; status: string; cwd: string; script: string | null; packageSha256: string | null; projectChanges: string[]; automaticMigration: boolean; originPreserved: boolean; issues: string[]; trial: { argv: string[]; framework: "next" | "vite"; requestedName: string | null; protocol: string; allocation: string; rollback: string } | null; limitations: string[]; }
+interface PortlessPlan {
+  schemaVersion: 1;
+  kind: "portless-adoption-plan";
+  status: string;
+  cwd: string;
+  script: string | null;
+  packageSha256: string | null;
+  projectChanges: string[];
+  automaticMigration: boolean;
+  originPreserved: boolean;
+  issues: string[];
+  trial: {
+    argv: string[];
+    framework: "next" | "vite";
+    requestedName: string | null;
+    protocol: string;
+    allocation: string;
+    rollback: string;
+  } | null;
+  limitations: string[];
+}
 import { lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -10,7 +30,10 @@ const record = (value: object | null): boolean =>
 
 // Only package metadata is read. Neither wrapper code nor Portless configuration
 // is evaluated, and a trial is never represented as an origin-preserving import.
-export function inspectPortless(cwd: string, requestedScript?: string): PortlessPlan {
+export function inspectPortless(
+  cwd: string,
+  requestedScript?: string,
+): PortlessPlan {
   const root = realpathSync(cwd);
   const report: PortlessPlan = {
     schemaVersion: 1,
@@ -30,7 +53,9 @@ export function inspectPortless(cwd: string, requestedScript?: string): Portless
       "Dependencies must already be installed. Application environment files are never read.",
     ],
   };
-  const issue = (code: string): void => { report.issues.push(code); };
+  const issue = (code: string): void => {
+    report.issues.push(code);
+  };
   let pkg: import("./types.js").PortlessPackage;
   try {
     const path = join(root, "package.json");
@@ -50,8 +75,11 @@ export function inspectPortless(cwd: string, requestedScript?: string): Portless
     issue("unreadable-package");
     return report;
   }
-  if (!pkg.scripts) { issue("invalid-package-scripts"); return report; }
-  const script = requestedScript ?? (pkg.scripts.dev ? "dev" : "start");
+  if (!pkg.scripts) {
+    issue("invalid-package-scripts");
+    return report;
+  }
+  const script = requestedScript ?? (pkg.scripts["dev"] ? "dev" : "start");
   report.script = script;
   if (
     !Object.hasOwn(pkg.scripts, script) ||

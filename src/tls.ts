@@ -4,7 +4,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createSecureContext } from "node:tls";
 
-export function gatewayTransport(gateway: GatewayConfig, cwd: string): { identity: string; protocol: "http" | "https"; tls?: { cert: string; key: string; minVersion: "TLSv1.2" } } {
+export function gatewayTransport(
+  gateway: GatewayConfig,
+  cwd: string,
+): {
+  identity: string;
+  protocol: "http" | "https";
+  tls?: { cert: string; key: string; minVersion: "TLSv1.2" };
+} {
   if (!gateway.tls) return { identity: "http", protocol: "http" };
   let cert: string;
   let key: string;

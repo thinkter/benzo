@@ -1,3 +1,12 @@
+import type { ChildProcess } from "node:child_process";
+import type { WriteStream } from "node:fs";
+import type {
+  ControlResponse,
+  RuntimeState,
+  NormalizedManifest,
+  ServiceConfig,
+  DiscoveryOptions,
+} from "./types.js";
 import { createServer, request as httpRequest } from "node:http";
 import { createConnection } from "node:net";
 import { createWriteStream } from "node:fs";
@@ -30,7 +39,11 @@ import {
 } from "./core.js";
 import { listen } from "./gateway.js";
 
-export function supervisorRequest(state, action = "status", timeout = 2000) {
+export function supervisorRequest(
+  state: Pick<RuntimeState, "controlPort" | "token">,
+  action = "status",
+  timeout = 2000,
+): Promise<Omit<RuntimeState, "token">> {
   return new Promise((accept, reject) => {
     const request = httpRequest(
       {
@@ -67,18 +80,33 @@ export function supervisorRequest(state, action = "status", timeout = 2000) {
     request.end();
   });
 }
-export async function liveState(cwd) {
+export async function liveState(cwd: string) {
   const state = readState(cwd);
-  if (!state) return undefined;
+  if (
+    !state ||
+    typeof state["token"] !== "string" ||
+    typeof state["controlPort"] !== "number"
+  )
+    return undefined;
   try {
-    return { ...(await supervisorRequest(state)), token: state.token };
+    return {
+      ...(await supervisorRequest({
+        token: state["token"],
+        controlPort: state["controlPort"],
+      })),
+      token: state["token"],
+    };
   } catch {
     return undefined;
   }
 }
-async function probe(port, service, signal) {
+async function probe(
+  port: number,
+  service: ServiceConfig,
+  signal: AbortSignal,
+): Promise<void> {
   if (service.ready?.type === "tcp")
-    return new Promise((accept, reject) => {
+    return new Promise<void>((accept, reject) => {
       const socket = createConnection({ host: "127.0.0.1", port });
       socket.once("connect", () => {
         socket.destroy();
@@ -92,7 +120,7 @@ async function probe(port, service, signal) {
       signal.addEventListener("abort", abort, { once: true });
       socket.once("close", () => signal.removeEventListener("abort", abort));
     });
-  return new Promise((accept, reject) => {
+  return new Promise<void>((accept, reject) => {
     const request = httpRequest(
       {
         host: "127.0.0.1",
@@ -108,7 +136,7 @@ async function probe(port, service, signal) {
         if (
           expected
             ? response.statusCode === expected
-            : response.statusCode < 500
+            : (response.statusCode ?? 500) < 500
         )
           accept();
         else reject(new Error(`HTTP ${response.statusCode}`));
@@ -121,7 +149,15 @@ async function probe(port, service, signal) {
     request.end();
   });
 }
-export async function runDev(cwd, config, options = {}) {
+export async function runDev(
+  cwd: string,
+  config: NormalizedManifest,
+  options: {
+    name?: string | undefined;
+    config?: string | undefined;
+    discovery?: DiscoveryOptions | undefined;
+  } = {},
+) {
   cwd = canonicalPath(cwd);
   if (await liveState(cwd))
     throw new Error(
@@ -129,23 +165,23 @@ export async function runDev(cwd, config, options = {}) {
     );
   const preferred = readPreferences(cwd);
   const cancellation = new AbortController();
-  const children = [];
-  const streams = [];
-  let reservation;
-  let lease;
-  let state;
-  let failure;
-  let shutdownPromise;
-  let resolveDone;
-  const done = new Promise((accept) => {
+  const children: ChildProcess[] = [];
+  const streams: WriteStream[] = [];
+  let reservation: Awaited<ReturnType<typeof reservePorts>> | undefined;
+  let lease: ControlResponse | undefined;
+  let state: RuntimeState | undefined;
+  let failure: Error | undefined;
+  let shutdownPromise: Promise<void> | undefined;
+  let resolveDone: () => void = () => {};
+  const done = new Promise<void>((accept) => {
     resolveDone = accept;
   });
   const token = randomUUID();
   const supervisor = createServer((request, response) => {
     if (request.headers.authorization !== `Bearer ${token}`)
-      return response.writeHead(403).end();
+      return void response.writeHead(403).end();
     if (request.url === "/status" && request.method === "GET")
-      return response
+      return void response
         .writeHead(200, { "content-type": "application/json" })
         .end(JSON.stringify(publicState(state)));
     if (request.url === "/stop" && request.method === "POST") {
@@ -160,22 +196,22 @@ export async function runDev(cwd, config, options = {}) {
       cancellation.abort();
       await Promise.all(children.map((child) => stop(child)));
       for (const stream of streams)
-        await new Promise((accept) => stream.end(accept));
+        await new Promise<void>((accept) => stream.end(accept));
       if (lease && !lease.socket.destroyed) {
         const registry = readJson(
           join(gatewayDirectory(config.gateway.port), "gateway.json"),
         );
         lease.socket.write(
-          `${JSON.stringify({ protocol: "benzo/1", token: registry?.token, action: "released" })}\n`,
+          `${JSON.stringify({ protocol: "benzo/1", token: registry?.["token"], action: "released" })}\n`,
         );
         lease.socket.end();
       }
       await reservation?.(true);
-      await new Promise((accept) => {
+      await new Promise<void>((accept) => {
         supervisor.close(() => accept());
         supervisor.closeAllConnections();
       });
-      if (state && readState(cwd)?.token === token) {
+      if (state && readState(cwd)?.["token"] === token) {
         writeLastState(cwd, {
           ...publicState(state),
           status: failure ? "failed" : "stopped",
@@ -186,7 +222,7 @@ export async function runDev(cwd, config, options = {}) {
     })());
   }
   const onSignal = () => void shutdown();
-  const failed = (error) => {
+  const failed = (error: Error) => {
     if (cancellation.signal.aborted) return;
     failure ??= error;
     void shutdown();
@@ -198,7 +234,11 @@ export async function runDev(cwd, config, options = {}) {
       { length: config.worktree.slots },
       (_, index) => index,
     );
-    if (preferred?.slot < slots.length) slots.unshift(preferred.slot);
+    if (
+      typeof preferred?.["slot"] === "number" &&
+      preferred["slot"] < slots.length
+    )
+      slots.unshift(preferred["slot"]);
     let allocation;
     for (const slot of new Set(slots)) {
       try {
@@ -209,10 +249,15 @@ export async function runDev(cwd, config, options = {}) {
         ]);
         break;
       } catch (error) {
-        if (error.code !== "EADDRINUSE") throw error;
+        if (!(
+          error instanceof Error &&
+          "code" in error &&
+          error.code === "EADDRINUSE"
+        ))
+          throw error;
       }
     }
-    if (!reservation)
+    if (!reservation || !allocation)
       throw new Error(
         "All Benzo internal port slots are occupied. benzo doctor reports the configured range.",
       );
@@ -225,7 +270,9 @@ export async function runDev(cwd, config, options = {}) {
         name:
           options.name ??
           config.name ??
-          preferred?.name ??
+          (typeof preferred?.["name"] === "string"
+            ? preferred["name"]
+            : undefined) ??
           worktreeName(basename(cwd)),
         baseName: options.name ?? config.name ?? worktreeName(basename(cwd)),
         services: config.services.map((service) => ({
@@ -246,7 +293,12 @@ export async function runDev(cwd, config, options = {}) {
         ),
       ),
     );
-    const urls = namedOrigins(lease.name, config.services, config.gateway.port, config.gateway.tls ? "https" : "http");
+    const urls = namedOrigins(
+      lease.name,
+      config.services,
+      config.gateway.port,
+      config.gateway.tls ? "https" : "http",
+    );
     await listen(supervisor, 0);
     if (cancellation.signal.aborted) return;
     state = {
@@ -255,7 +307,12 @@ export async function runDev(cwd, config, options = {}) {
       projectId: projectIdentity(cwd),
       worktreeId: hash(cwd),
       token,
-      controlPort: supervisor.address().port,
+      controlPort: (() => {
+        const address = supervisor.address();
+        if (!address || typeof address === "string")
+          throw new Error("Supervisor has no TCP address.");
+        return address.port;
+      })(),
       status: "starting",
       name: lease.name,
       slot: allocation.slot,
@@ -272,6 +329,7 @@ export async function runDev(cwd, config, options = {}) {
     for (const service of config.services) {
       if (cancellation.signal.aborted) break;
       const origin = urls[service.name];
+      if (!origin) throw new Error("Missing allocated origin.");
       const port = allocation.ports[service.name];
       const context = {
         port: String(port),
@@ -303,7 +361,7 @@ export async function runDev(cwd, config, options = {}) {
         { flags: "a", mode: 0o600 },
       );
       streams.push(stream);
-      state.logs[service.name] = stream.path;
+      state.logs[service.name] = String(stream.path);
       stream.on("error", () =>
         failed(new Error(`Cannot write ${service.name} logs.`)),
       );
@@ -312,7 +370,7 @@ export async function runDev(cwd, config, options = {}) {
         command.args,
         resolve(cwd, service.cwd ?? "."),
         safeEnvironment(process.env, additions, {
-          exclude: service.excludeEnv,
+          exclude: service.excludeEnv ?? [],
         }),
       );
       children.push(child);
@@ -321,21 +379,21 @@ export async function runDev(cwd, config, options = {}) {
           join(gatewayDirectory(config.gateway.port), "gateway.json"),
         );
         lease.socket.write(
-          `${JSON.stringify({ protocol: "benzo/1", token: registry?.token, action: "own", pid: child.pid })}\n`,
+          `${JSON.stringify({ protocol: "benzo/1", token: registry?.["token"], action: "own", pid: child.pid })}\n`,
         );
       }
       for (const [pipe, output] of [
         [child.stdout, process.stdout],
         [child.stderr, process.stderr],
-      ])
-        pipe.on("data", (chunk) => {
+      ] as const)
+        pipe?.on("data", (chunk) => {
           logLine(chunk.toString(), undefined, stream);
           logLine(chunk.toString(), undefined, output);
         });
       child.once("error", (error) =>
         failed(
           new Error(
-            `Could not launch ${service.name}: ${error.code ?? "spawn failed"}. Check that its dependencies and command are installed.`,
+            `Could not launch ${service.name}: ${"code" in error ? String(error.code) : "spawn failed"}. Check that its dependencies and command are installed.`,
           ),
         ),
       );
@@ -384,7 +442,7 @@ export async function runDev(cwd, config, options = {}) {
     process.off("SIGTERM", onSignal);
   }
 }
-export function publicState(state) {
+export function publicState(state: RuntimeState | undefined) {
   if (!state) return {};
   const { token, ...safe } = state;
   return safe;

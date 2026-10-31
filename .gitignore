@@ -4,3 +4,6 @@ node_modules/
 test-results/
 playwright-report/
 *.tgz
+
+dist/
+.typed-check/

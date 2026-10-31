@@ -26,7 +26,12 @@ import {
 } from "./runtime.js";
 
 function parse(argv: string[]): CliOptions {
-  const result: CliOptions = { command: argv[0] ?? "dev", discovery: {}, env: {}, args: [] };
+  const result: CliOptions = {
+    command: argv[0] ?? "dev",
+    discovery: {},
+    env: {},
+    cwd: process.cwd(),
+  };
   let index = 1;
   if (argv[0]?.startsWith("-")) {
     result.command = "dev";
@@ -39,8 +44,7 @@ function parse(argv: string[]): CliOptions {
       const command = argv[++index];
       if (command) result.discovery.command = command;
       result.discovery.args = argv.slice(index + 1);
-      if (!command)
-        throw new Error("Expected a command after --.");
+      if (!command) throw new Error("Expected a command after --.");
       break;
     }
     if (result.command === "migrate" && index === 1 && arg === "portless") {
@@ -70,7 +74,12 @@ function parse(argv: string[]): CliOptions {
       if (!value || value.startsWith("--"))
         throw new Error(`Missing value for ${arg}.`);
       const key = arg.slice(2) as keyof CliOptions;
-      if (["cwd", "config", "name", "script", "service", "from"].includes(arg.slice(2))) result[key] = value;
+      if (
+        ["cwd", "config", "name", "script", "service", "from"].includes(
+          arg.slice(2),
+        )
+      )
+        result[key] = value;
       else if (arg === "--gateway-port") result[key] = Number(value);
     } else if (arg === "--json") result.json = true;
     else if (arg === "--auth-relay") result.authRelay = true;
@@ -93,37 +102,88 @@ async function main() {
   }
   if (options.command === "help") return console.log(help);
   if (options.command === "version") return console.log("0.1.0");
-  if (options.command === "migrate" || (options.command === "dev" && options.from === "portless")) {
+  if (
+    options.command === "migrate" ||
+    (options.command === "dev" && options.from === "portless")
+  ) {
     const migration = options.command === "migrate";
-    const allowed = new Set(["command", "cwd", "env", "discovery", "script", "json", ...(migration ? ["migration", "dryRun"] : ["from"])]);
+    const allowed = new Set([
+      "command",
+      "cwd",
+      "env",
+      "discovery",
+      "script",
+      "json",
+      ...(migration ? ["migration", "dryRun"] : ["from"]),
+    ]);
     if (migration && (options.migration !== "portless" || !options.dryRun))
-      throw new Error("Only benzo migrate portless --dry-run is supported; automatic migration is not implemented.");
-    if (Object.keys(options).some(key => !allowed.has(key)) || Object.keys(options.env).length || options.discovery.command)
-      throw new Error("Portless inspection accepts only --cwd, --script and --json; it never launches or changes files.");
+      throw new Error(
+        "Only benzo migrate portless --dry-run is supported; automatic migration is not implemented.",
+      );
+    if (
+      Object.keys(options).some((key) => !allowed.has(key)) ||
+      Object.keys(options.env).length ||
+      options.discovery.command
+    )
+      throw new Error(
+        "Portless inspection accepts only --cwd, --script and --json; it never launches or changes files.",
+      );
     const report = inspectPortless(options.cwd, options.script);
     console.log(JSON.stringify(report, null, options.json ? 0 : 2));
     if (report.status === "unsupported") process.exitCode = 1;
     return;
   }
-  if (options.dryRun) throw new Error("--dry-run is supported only by benzo migrate portless --dry-run.");
-  if (options.command === "inspect") throw new Error("The graph inspection command was removed from Benzo. Use an orchestrator's own CLI, then provide an explicit Benzo manifest or SDK lease.");
-  if (options.from) throw new Error("--from supports only read-only Portless inspection.");
+  if (options.dryRun)
+    throw new Error(
+      "--dry-run is supported only by benzo migrate portless --dry-run.",
+    );
+  if (options.command === "inspect")
+    throw new Error(
+      "The graph inspection command was removed from Benzo. Use an orchestrator's own CLI, then provide an explicit Benzo manifest or SDK lease.",
+    );
+  if (options.from)
+    throw new Error("--from supports only read-only Portless inspection.");
   if (options.command === "exec") {
     const allowed = new Set(["command", "cwd", "env", "discovery"]);
-    if (Object.keys(options).some((key) => !allowed.has(key)) || options.discovery.script)
-      throw new Error("exec accepts only --cwd, --env and a command after --. It uses the running environment.");
-    if (!options.discovery.command) throw new Error("Expected a command after --.");
-    process.exitCode = await runClient({ cwd: options.cwd, command: options.discovery.command, args: options.discovery.args, env: options.env });
+    if (
+      Object.keys(options).some((key) => !allowed.has(key)) ||
+      options.discovery.script
+    )
+      throw new Error(
+        "exec accepts only --cwd, --env and a command after --. It uses the running environment.",
+      );
+    if (!options.discovery.command)
+      throw new Error("Use benzo exec [--env KEY=value] -- <command> [args].");
+    process.exitCode = await runClient({
+      cwd: options.cwd,
+      command: options.discovery.command,
+      args: options.discovery.args ?? [],
+      env: options.env,
+    });
     return;
   }
   if (["link", "unlink"].includes(options.command)) {
-    const allowed = new Set(["command", "cwd", "env", "discovery", ...(options.command === "link" ? ["config"] : [])]);
-    if (Object.keys(options).some((key) => !allowed.has(key)) ||
-        Object.keys(options.env).length || Object.keys(options.discovery).length)
-      throw new Error(`${options.command} accepts only --cwd${options.command === "link" ? " and --config" : ""}; launch options are not saved.`);
+    const allowed = new Set([
+      "command",
+      "cwd",
+      "env",
+      "discovery",
+      ...(options.command === "link" ? ["config"] : []),
+    ]);
+    if (
+      Object.keys(options).some((key) => !allowed.has(key)) ||
+      Object.keys(options.env).length ||
+      Object.keys(options.discovery).length
+    )
+      throw new Error(
+        `${options.command} accepts only --cwd${options.command === "link" ? " and --config" : ""}; launch options are not saved.`,
+      );
   }
   if (options.command === "link") {
-    if (!options.config) throw new Error("Use benzo link --config <file> to associate a manifest with this checkout.");
+    if (!options.config)
+      throw new Error(
+        "Use benzo link --config <file> to associate a manifest with this checkout.",
+      );
     loadManifest(options.cwd, options.config);
     const manifest = associateManifest(options.cwd, options.config);
     console.log(`Linked this checkout to ${manifest}. Run benzo to start it.`);
@@ -131,7 +191,9 @@ async function main() {
   }
   if (options.command === "unlink") {
     removeAssociation(options.cwd);
-    console.log("Removed this checkout's manifest association. Project files and running services are unchanged.");
+    console.log(
+      "Removed this checkout's manifest association. Project files and running services are unchanged.",
+    );
     return;
   }
   if (options.command === "describe") {
@@ -140,9 +202,22 @@ async function main() {
     return;
   }
   if (["status", "urls", "logs", "stop"].includes(options.command)) {
-    const state =
-      (await liveState(options.cwd)) ??
-      (options.command === "logs" ? readLastState(options.cwd) : undefined);
+    const state = await liveState(options.cwd);
+    if (options.command === "logs") {
+      const logs = state?.logs ?? readLastState(options.cwd)?.["logs"];
+      if (logs === null || typeof logs !== "object" || Array.isArray(logs)) {
+        console.log("No running Benzo worktree.");
+        return;
+      }
+      for (const [service, path] of Object.entries(logs))
+        if (
+          typeof path === "string" &&
+          (!options.service || options.service === service) &&
+          existsSync(path)
+        )
+          process.stdout.write(readFileSync(path, "utf8"));
+      return;
+    }
     if (options.command === "status")
       return console.log(
         options.json
@@ -173,7 +248,11 @@ async function main() {
         process.stdout.write(readFileSync(path, "utf8"));
     return;
   }
-  let { config, source, input } = loadManifestWithSource(options.cwd, options.config, options.discovery);
+  let { config, source, input } = loadManifestWithSource(
+    options.cwd,
+    options.config,
+    options.discovery,
+  );
   if (options["gateway-port"])
     config = normalizeManifest({
       ...config,
@@ -197,10 +276,12 @@ async function main() {
     kind: "launch-plan",
     provenance: planProvenance(input, source, options),
     allocatedName: null,
-    allocationRules: "CLI name, then configured name, then saved name, then checkout basename; active collisions may change the allocated name. Private ports are reserved at launch.",
+    allocationRules:
+      "CLI name, then configured name, then saved name, then checkout basename; active collisions may change the allocated name. Private ports are reserved at launch.",
     liveValuesCommand: "benzo describe --json",
     allocation: "unresolved-until-launch",
-    requestedName: options.name ?? config.name ?? worktreeName(basename(options.cwd)),
+    requestedName:
+      options.name ?? config.name ?? worktreeName(basename(options.cwd)),
     cwd: options.cwd,
     source,
     diagnostics: manifestDiagnostics(config),
@@ -243,28 +324,47 @@ async function main() {
   };
   if (["config", "explain"].includes(options.command)) {
     if (options.command === "config" || options.json)
-      return console.log(JSON.stringify(descriptor, null, options.json ? 0 : 2));
+      return console.log(
+        JSON.stringify(descriptor, null, options.json ? 0 : 2),
+      );
     console.log(
       [
         `Project: ${descriptor.cwd}`,
         `Discovery: ${descriptor.discovery}`,
         `Source: ${descriptor.source.kind}${descriptor.source.path ? ` (${descriptor.source.path})` : ""}`,
-        ...descriptor.diagnostics.map((entry) => `Unknown config field: ${entry.path}`),
+        ...descriptor.diagnostics.map(
+          (entry) => `Unknown config field: ${entry.path}`,
+        ),
         `Gateway: ${descriptor.gateway.protocol}://${descriptor.gateway.host}:${descriptor.gateway.port}`,
         `Requested name: ${descriptor.requestedName} (${descriptor.provenance.requestedName}); allocated name unresolved until launch`,
         `Gateway port source: ${descriptor.provenance.gateway.port}`,
         `Auth: ${descriptor.auth.mode} (${descriptor.provenance.authMode})`,
-        ...Object.entries(descriptor.provenance.gateway).map(([key, source]) => `Gateway ${key}: ${source}`),
-        ...Object.entries(descriptor.provenance.worktree).map(([key, source]) => `Worktree ${key}: ${source}`),
+        ...Object.entries(descriptor.provenance.gateway).map(
+          ([key, source]) => `Gateway ${key}: ${source}`,
+        ),
+        ...Object.entries(descriptor.provenance.worktree).map(
+          ([key, source]) => `Worktree ${key}: ${source}`,
+        ),
         `Backend mode: ${descriptor.backend.mode} (${descriptor.provenance.backendMode})`,
-        ...descriptor.provenance.services.flatMap(service => [
+        ...descriptor.provenance.services.flatMap((service) => [
           `Service ${service.name} sources: command=${service.command}, args=${service.args}, cwd=${service.cwd}, excludeEnv=${service.excludeEnv}`,
-          `Service ${service.name} readiness sources: ${Object.entries(service.ready).map(([key, source]) => `${key}=${source}`).join(", ")}`,
-          `Service ${service.name} environment sources: ${Object.entries(service.env).map(([key, source]) => `${key}=${source}`).join(", ")}`,
+          `Service ${service.name} readiness sources: ${Object.entries(
+            service.ready,
+          )
+            .map(([key, source]) => `${key}=${source}`)
+            .join(", ")}`,
+          `Service ${service.name} environment sources: ${Object.entries(
+            service.env,
+          )
+            .map(([key, source]) => `${key}=${source}`)
+            .join(", ")}`,
           `Service ${service.name} excluded inherited keys: ${service.excludedInheritedKeys.join(", ") || "none"}`,
           `Service ${service.name} executable search: ${service.executableSearchPath}`,
         ]),
-        ...descriptor.services.map(service => `Origin ${service.name}: ${service.originTemplate} (unresolved)`),
+        ...descriptor.services.map(
+          (service) =>
+            `Origin ${service.name}: ${service.originTemplate} (unresolved)`,
+        ),
         ...descriptor.services.map((service) =>
           `Service ${service.name}: ${service.command} ${service.args.join(" ")}`.trim(),
         ),
@@ -279,8 +379,11 @@ async function main() {
       services: config.services.map((service) => service.name),
       gateway: descriptor.gateway,
       auth: config.auth.mode,
-      dns: [],
-      warnings: [],
+      dns: [] as {
+        hostname: string;
+        addresses: import("node:dns").LookupAddress[];
+      }[],
+      warnings: [] as string[],
     };
     for (const hostname of [
       `${worktreeName(basename(options.cwd))}.localhost`,
@@ -302,7 +405,9 @@ async function main() {
       "A hard-coded application origin/trusted-origin list or provider policy may prevent unchanged auth from working on a named origin. Benzo does not disable CSRF checks or reconfigure OAuth providers.",
     );
     if (config.gateway.tls)
-      diagnostics.warnings.push("HTTPS uses your supplied certificate. Benzo installs no CA; each browser, Node, Go or container client must trust its issuer and resolve the named host. HTTP-only callbacks on this port are unsupported.");
+      diagnostics.warnings.push(
+        "HTTPS uses your supplied certificate. Benzo installs no CA; each browser, Node, Go or container client must trust its issuer and resolve the named host. HTTP-only callbacks on this port are unsupported.",
+      );
     if (config.discovery === "script")
       diagnostics.warnings.push(
         "Unknown dev server: its existing script must honor PORT. Use an external Benzo config if it needs a port argument.",
@@ -316,8 +421,10 @@ async function main() {
   }
   if (options.command !== "dev")
     throw new Error(`Unknown command: ${options.command}. Use benzo --help.`);
-  for (const warning of config.warnings ?? []) console.error(`benzo: ${warning}`);
-  for (const entry of descriptor.diagnostics) console.error(`benzo: unknown config field ${entry.path}`);
+  for (const warning of config.warnings ?? [])
+    console.error(`benzo: ${warning}`);
+  for (const entry of descriptor.diagnostics)
+    console.error(`benzo: unknown config field ${entry.path}`);
   await runDev(options.cwd, config, {
     name: options.name,
     config: options.config,

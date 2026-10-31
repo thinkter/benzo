@@ -1,3 +1,24 @@
+import { registration } from "./registration.js";
+import type { ChildProcess } from "node:child_process";
+import type { Socket } from "node:net";
+import type { WriteStream } from "node:fs";
+import type {
+  NormalizedManifest,
+  GatewayRegistration,
+  GatewayLaunch,
+  ControlResponse,
+} from "./types.js";
+import type { Route, CallbackEntry } from "./gateway.js";
+interface Peer {
+  socket: Socket;
+  name: string;
+  project: string;
+  hosts: string[];
+  external: boolean;
+  services: Map<string, string>;
+  children: Set<number>;
+  cwd: string;
+}
 import { createServer } from "node:net";
 import { createWriteStream, mkdirSync, rmSync, statSync } from "node:fs";
 import { randomUUID, X509Certificate } from "node:crypto";
@@ -23,41 +44,61 @@ import { listen } from "./gateway.js";
 import { gatewayTransport } from "./tls.js";
 
 const daemonEntry = fileURLToPath(new URL("./cli.js", import.meta.url));
-export function gatewayDirectory(port) {
+export function gatewayDirectory(port: number) {
   return join(homeDirectory(), "gateways", String(port));
 }
-export async function acquireGateway(config, request, { signal } = {}) {
+export async function acquireGateway(
+  config: NormalizedManifest,
+  request: GatewayRegistration,
+  { signal }: { signal?: AbortSignal } = {},
+): Promise<ControlResponse> {
   const transport = gatewayTransport(config.gateway, request.worktree);
   const directory = gatewayDirectory(config.gateway.port);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const path = join(directory, "gateway.json");
   const lock = join(directory, "starting");
   let starter = false;
-  let child;
+  let child: ChildProcess | undefined;
+  let childFailure: Promise<Error> | undefined;
   const deadline = Date.now() + 15000;
   try {
     while (Date.now() < deadline) {
       if (signal?.aborted) throw new Error("Startup cancelled.");
       const registry = readJson(path);
       if (registry) {
-        if (registry.controlPort !== config.gateway.controlPort)
+        if (typeof registry["token"] !== "string")
+          throw new Error("Invalid gateway registry.");
+        if (registry["controlPort"] !== config.gateway.controlPort)
           throw new Error(
             "This gateway already uses a different control port. Use its controlPort or choose a different gateway port.",
           );
         try {
           const lease = await connectShared({
-            port: registry.controlPort,
-            request: { ...request, transport: transport.identity, token: registry.token },
-            signal,
+            port: config.gateway.controlPort,
+            request: {
+              ...request,
+              transport: transport.identity,
+              token: registry["token"],
+            },
+            ...(signal ? { signal } : {}),
             timeout: 2000,
           });
           if ((lease.transport ?? "http") !== transport.identity) {
             lease.socket.destroy();
-            throw new Error("Gateway transport or certificate differs. Choose a different gateway port or stop the existing gateway's launchers first.");
+            throw new Error(
+              "Gateway transport or certificate differs. Choose a different gateway port or stop the existing gateway's launchers first.",
+            );
           }
           return lease;
         } catch (error) {
-          if (!["ECONNREFUSED", "ECONNRESET"].includes(error.code)) throw error;
+          if (
+            !["ECONNREFUSED", "ECONNRESET"].includes(
+              error instanceof Error && "code" in error
+                ? String(error.code)
+                : "",
+            )
+          )
+            throw error;
         }
       }
       if (!starter) {
@@ -73,12 +114,12 @@ export async function acquireGateway(config, request, { signal } = {}) {
             { stdio: ["pipe", "ignore", "pipe"] },
           );
           let diagnostic = "";
-          child.stderr.on("data", (chunk) => {
+          child.stderr?.on("data", (chunk) => {
             diagnostic = `${diagnostic}${chunk}`.slice(-2048);
           });
-          child.failure = new Promise((accept) => {
-            child.once("error", (error) => accept(error));
-            child.once("exit", () =>
+          childFailure = new Promise<Error>((accept) => {
+            child?.once("error", (error) => accept(error));
+            child?.once("exit", () =>
               accept(
                 new Error(
                   diagnostic.trim() ||
@@ -87,17 +128,22 @@ export async function acquireGateway(config, request, { signal } = {}) {
               ),
             );
           });
-          child.stdin.end(
+          child.stdin?.end(
             JSON.stringify({
               gateway: { ...config.gateway, tls: transport.tls },
               transport: transport.identity,
               ownerProject: request.project,
             }),
           );
-          child.stdin.on("error", () => {});
+          child.stdin?.on("error", () => {});
           child.unref();
         } catch (error) {
-          if (error.code !== "EEXIST") throw error;
+          if (!(
+            error instanceof Error &&
+            "code" in error &&
+            error.code === "EEXIST"
+          ))
+            throw error;
           try {
             if (Date.now() - statSync(lock).mtimeMs > 20000)
               rmSync(lock, { recursive: true });
@@ -106,7 +152,7 @@ export async function acquireGateway(config, request, { signal } = {}) {
       }
       if (child) {
         const failure = await Promise.race([
-          child.failure,
+          childFailure,
           delay(75).then(() => undefined),
         ]);
         if (failure) throw failure;
@@ -121,24 +167,35 @@ export async function acquireGateway(config, request, { signal } = {}) {
   }
 }
 
-export async function runGateway(config) {
-  const certificate = config.gateway.tls ? new X509Certificate(config.gateway.tls.cert) : undefined;
+export async function runGateway(config: GatewayLaunch) {
+  const cert = config.gateway.tls?.cert;
+  if (cert !== undefined && typeof cert !== "string" && !Buffer.isBuffer(cert))
+    throw new Error("Invalid TLS certificate.");
+  const certificate = cert ? new X509Certificate(cert) : undefined;
   const directory = gatewayDirectory(config.gateway.port);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const registryPath = join(directory, "gateway.json");
   const token = randomUUID();
-  const routes = new Map();
-  const peers = new Map();
-  const pendingSockets = new Set();
-  const backends = new Map();
-  const callbackStore = new Map();
+  const routes = new Map<string, Route>();
+  const peers = new Map<string, Peer>();
+  const pendingSockets = new Set<Socket>();
+  const backends = new Map<
+    string,
+    { child: ChildProcess; stream: WriteStream; identity: string }
+  >();
+  const callbackStore = new Map<string, CallbackEntry>();
   const gateways = [
-    createGateway({ routes, port: config.gateway.port, callbackStore, tls: config.gateway.tls }),
+    createGateway({
+      routes,
+      port: config.gateway.port,
+      callbackStore,
+      tls: config.gateway.tls,
+    }),
   ];
-  let idle;
-  let stopping;
-  let resolveDone;
-  const done = new Promise((accept) => {
+  let idle: NodeJS.Timeout | undefined;
+  let stopping: Promise<void> | undefined;
+  let resolveDone: () => void = () => {};
+  const done = new Promise<void>((accept) => {
     resolveDone = accept;
   });
   const control = createServer((socket) => {
@@ -146,87 +203,134 @@ export async function runGateway(config) {
     socket.on("error", () => {});
     socket.setTimeout(5000, () => socket.destroy());
     socket.once("close", () => pendingSockets.delete(socket));
-    const reject = (message) =>
-      socket.end(`${JSON.stringify({ protocol: PROTOCOL, error: message })}\n`);
+    const reject = (message: string): void =>
+      void socket.end(
+        `${JSON.stringify({ protocol: PROTOCOL, error: message })}\n`,
+      );
     receiveMessage(
       socket,
       async (request) => {
         try {
-          if (request.protocol !== PROTOCOL || request.token !== token)
+          if (request["protocol"] !== PROTOCOL || request["token"] !== token)
             return reject("Incompatible or unauthorized gateway registration.");
-          if (request.action === "attach" || request.action === "readiness") {
-            const peer = [...peers.values()].find(value => value.socket === socket);
-            if (!peer?.external) return reject("No external listener lease on this connection.");
-            const routeHost = peer.services.get(request.service);
-            if (!routeHost) return reject("Unknown service on this lease.");
-            const previous = routes.get(routeHost);
-            if (typeof request.ready !== "boolean") return reject("Readiness must be boolean.");
-            const port = request.action === "attach" ? request.port : previous.port;
-            if (!Number.isInteger(port) || port < 1 || port > 65535 ||
-                port === config.gateway.port || port === config.gateway.controlPort)
-              return reject("Invalid external listener port.");
-            // Readiness belongs to the same owner. Only attaching an upstream
-            // creates a new identity and invalidates its old OAuth state.
-            if (request.action === "readiness") previous.ready = request.ready;
-            else routes.set(routeHost, { ...previous, port, ready: request.ready });
-            socket.write(`${JSON.stringify({ protocol: PROTOCOL, updated: true, id: request.id })}\n`);
-            return;
-          }
-          if (request.action === "own" || request.action === "released") {
+          if (
+            request["action"] === "attach" ||
+            request["action"] === "readiness"
+          ) {
             const peer = [...peers.values()].find(
               (value) => value.socket === socket,
             );
-            if (!peer || peer.external) return reject("No process ownership lease.");
-            if (request.action === "released") {
+            if (typeof request["service"] !== "string")
+              return reject("Invalid service.");
+            if (!peer?.external)
+              return reject("No external listener lease on this connection.");
+            const routeHost = peer.services.get(request["service"]);
+            if (!routeHost) return reject("Unknown service on this lease.");
+            const previous = routes.get(routeHost);
+            if (typeof request["ready"] !== "boolean")
+              return reject("Readiness must be boolean.");
+            if (!previous) return reject("Listener route disappeared.");
+            const port =
+              request["action"] === "attach" ? request["port"] : previous.port;
+            if (
+              typeof port !== "number" ||
+              !Number.isInteger(port) ||
+              port < 1 ||
+              port > 65535 ||
+              port === config.gateway.port ||
+              port === config.gateway.controlPort
+            )
+              return reject("Invalid external listener port.");
+            // Readiness belongs to the same owner. Only attaching an upstream
+            // creates a new identity and invalidates its old OAuth state.
+            if (request["action"] === "readiness")
+              previous.ready = request["ready"];
+            else
+              routes.set(routeHost, {
+                ...previous,
+                port,
+                ready: request["ready"],
+              });
+            socket.write(
+              `${JSON.stringify({ protocol: PROTOCOL, updated: true, id: request["id"] })}\n`,
+            );
+            return;
+          }
+          if (request["action"] === "own" || request["action"] === "released") {
+            const peer = [...peers.values()].find(
+              (value) => value.socket === socket,
+            );
+            if (!peer || peer.external)
+              return reject("No process ownership lease.");
+            if (request["action"] === "released") {
               peer.children.clear();
               return;
             }
-            if (!Number.isInteger(request.pid) || request.pid < 1)
+            if (
+              typeof request["pid"] !== "number" ||
+              !Number.isInteger(request["pid"]) ||
+              request["pid"] < 1
+            )
               return reject("Invalid child process.");
-            peer.children.add(request.pid);
+            peer.children.add(request["pid"]);
             return;
           }
-          if (request.action === "ping")
-            return socket.end(
+          if (request["action"] === "ping")
+            return void socket.end(
               `${JSON.stringify({ protocol: PROTOCOL, ready: true })}\n`,
             );
-          if ((request.transport ?? "http") !== (config.transport ?? "http"))
-            return reject("Gateway transport or certificate differs. Choose a different gateway port or stop the existing gateway's launchers first.");
-          const cwd = canonicalPath(request.worktree);
+          if ((request["transport"] ?? "http") !== (config.transport ?? "http"))
+            return reject(
+              "Gateway transport or certificate differs. Choose a different gateway port or stop the existing gateway's launchers first.",
+            );
+          const registered = registration(request);
+          const cwd = canonicalPath(registered.worktree);
           if (peers.has(cwd))
             return reject(
               "This worktree already has a running Benzo launcher. Use benzo urls or benzo stop.",
             );
           if (
-            !Array.isArray(request.services) ||
-            !request.services.length ||
-            request.services.length > 100
+            !Array.isArray(registered.services) ||
+            !registered.services.length ||
+            registered.services.length > 100
           )
             return reject("Invalid service registration.");
-          if (new Set(request.services.map(service => service.name)).size !== request.services.length)
+          if (
+            new Set(registered.services.map((service) => service.name)).size !==
+            registered.services.length
+          )
             return reject("Duplicate service registration.");
-          for (const service of request.services)
+          for (const service of registered.services)
             if (
               !/^[a-z][a-z0-9-]{0,49}$/.test(service.name) ||
               !Number.isInteger(service.port) ||
-              service.port < (request.external === true ? 0 : 1) ||
+              service.port < (registered.external === true ? 0 : 1) ||
               service.port > 65535
             )
               return reject("Invalid service registration.");
           const name = availableName(
-            request.name,
+            registered.name,
             new Set([...peers.values()].map((peer) => peer.name)),
-            request.baseName ?? basename(cwd),
+            registered.baseName ?? basename(cwd),
           );
-          if (certificate && request.services.some((service, index) =>
-            !certificate.checkHost(`${index ? `${service.name}.` : ""}${name}.localhost`)))
-            return reject("The TLS certificate does not cover every allocated service hostname. Supply a matching certificate or choose a covered worktree name.");
-          const peer = {
+          if (
+            certificate &&
+            registered.services.some(
+              (service, index) =>
+                !certificate.checkHost(
+                  `${index ? `${service.name}.` : ""}${name}.localhost`,
+                ),
+            )
+          )
+            return reject(
+              "The TLS certificate does not cover every allocated service hostname. Supply a matching certificate or choose a covered worktree name.",
+            );
+          const peer: Peer = {
             socket,
             name,
-            project: request.project,
+            project: registered.project,
             hosts: [],
-            external: request.external === true,
+            external: registered.external === true,
             services: new Map(),
             children: new Set(),
             cwd,
@@ -241,36 +345,41 @@ export async function runGateway(config) {
             for (const pid of peer.children) void stop(pid);
             if (!peers.size) idle = setTimeout(() => void shutdown(), 750);
           });
-          for (const [index, service] of request.services.entries()) {
+          for (const [index, service] of registered.services.entries()) {
             const host = `${index ? `${service.name}.` : ""}${name}.localhost`;
             if (routes.has(host))
               throw new Error("Conflicting service hostname.");
             routes.set(host, {
               port: service.port,
               ...(peer.external ? { ready: false } : {}),
-              auth: request.auth ?? { mode: "pass-through" },
+              auth: {
+                ...registered.auth,
+                mode: registered.auth?.mode ?? "pass-through",
+              },
             });
             peer.hosts.push(host);
             peer.services.set(service.name, host);
           }
-          if (request.backend?.mode === "shared") {
-            if (request.project !== config.ownerProject)
+          if (registered.backend?.mode === "shared") {
+            if (registered.project !== config.ownerProject)
               throw new Error(
                 "This gateway was started from another project. Use a separate --gateway-port for this shared backend so it inherits the correct environment.",
               );
             const manifest = loadManifest(
               cwd,
-              request.config,
-              request.discovery,
+              registered.config,
+              registered.discovery,
             );
             const identity = hash(JSON.stringify(manifest.backend));
-            const existing = backends.get(request.project);
+            const existing = backends.get(registered.project);
             if (existing && existing.identity !== identity)
               throw new Error(
                 "Shared backend configuration differs across worktrees.",
               );
             if (!existing) {
               const backend = manifest.backend;
+              if (!backend.command)
+                throw new Error("Shared backend requires a command.");
               const child = launch(
                 backend.command,
                 backend.args ?? [],
@@ -278,25 +387,25 @@ export async function runGateway(config) {
                 { ...process.env, ...backend.env },
               );
               const stream = createWriteStream(
-                join(directory, `backend-${request.project}.log`),
+                join(directory, `backend-${registered.project}.log`),
                 { flags: "a", mode: 0o600 },
               );
               for (const pipe of [child.stdout, child.stderr])
-                pipe.on("data", (chunk) =>
+                pipe?.on("data", (chunk) =>
                   stream.write(chunk.toString().replace(/\x1b\[[0-9;]*m/g, "")),
                 );
               const failBackend = () => {
                 stream.end();
-                backends.delete(request.project);
+                backends.delete(registered.project);
                 if (!stopping)
                   for (const active of peers.values())
-                    if (active.project === request.project)
+                    if (active.project === registered.project)
                       active.socket.destroy();
               };
               stream.on("error", failBackend);
-              child.once("error", failBackend);
-              child.once("exit", failBackend);
-              backends.set(request.project, { child, stream, identity });
+              child?.once("error", failBackend);
+              child?.once("exit", failBackend);
+              backends.set(registered.project, { child, stream, identity });
             }
           }
           if (!socket.destroyed)
@@ -304,7 +413,11 @@ export async function runGateway(config) {
               `${JSON.stringify({ protocol: PROTOCOL, ready: true, name, gatewayPort: config.gateway.port, transport: config.transport ?? "http" })}\n`,
             );
         } catch (error) {
-          reject(error.message);
+          reject(
+            error instanceof Error
+              ? error.message
+              : "Invalid gateway registration.",
+          );
         }
       },
       { multiple: true },
@@ -322,7 +435,7 @@ export async function runGateway(config) {
           backend.stream.end();
         }),
       );
-      if (readJson(registryPath)?.token === token)
+      if (readJson(registryPath)?.["token"] === token)
         rmSync(registryPath, { force: true });
       resolveDone();
     })());
@@ -330,9 +443,13 @@ export async function runGateway(config) {
   const onSignal = () => void shutdown();
   try {
     try {
-      await gateways[0].listen();
+      await gateways[0]?.listen();
     } catch (error) {
-      if (error.code === "EADDRINUSE")
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "EADDRINUSE"
+      )
         throw new Error(
           `Gateway port ${config.gateway.port} is already in use. Benzo will not stop its owner. Choose --gateway-port <port>, or stop the existing server yourself. Fixed OAuth callbacks still require their original port.`,
         );
@@ -349,7 +466,12 @@ export async function runGateway(config) {
       await ipv6.listen();
       gateways.push(ipv6);
     } catch (error) {
-      if (!["EAFNOSUPPORT", "EADDRNOTAVAIL"].includes(error.code)) throw error;
+      if (
+        !["EAFNOSUPPORT", "EADDRNOTAVAIL"].includes(
+          error instanceof Error && "code" in error ? String(error.code) : "",
+        )
+      )
+        throw error;
     }
     await listen(control, config.gateway.controlPort);
     atomicJson(registryPath, {

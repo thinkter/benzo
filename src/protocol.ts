@@ -3,7 +3,11 @@ import type { ControlResponse, JsonObject } from "./types.js";
 import { createConnection } from "node:net";
 
 export const PROTOCOL = "benzo/1";
-export function receiveMessage(socket: Socket, callback: (message: JsonObject) => void, { multiple = false }: { multiple?: boolean } = {}): void {
+export function receiveMessage(
+  socket: Socket,
+  callback: (message: JsonObject) => void,
+  { multiple = false }: { multiple?: boolean } = {},
+): void {
   socket.setEncoding("utf8");
   let buffer = "";
   let received = false;
@@ -40,7 +44,13 @@ export function connectShared({
   request,
   signal,
   timeout = 5000,
-}: { host?: string; port?: number; request?: JsonObject; signal?: AbortSignal; timeout?: number } = {}): Promise<ControlResponse> {
+}: {
+  host?: string;
+  port?: number;
+  request?: object;
+  signal?: AbortSignal;
+  timeout?: number;
+} = {}): Promise<ControlResponse> {
   return new Promise((accept, reject) => {
     if (signal?.aborted) return reject(new Error("Startup cancelled."));
     const socket = createConnection({ host, port });
@@ -75,14 +85,15 @@ export function connectShared({
       fail(new Error("Benzo gateway closed during registration.")),
     );
     receiveMessage(socket, (message: JsonObject) => {
-      if (message.protocol !== PROTOCOL)
+      if (message["protocol"] !== PROTOCOL)
         return fail(
           new Error(
             "Control port belongs to another application or incompatible Benzo version.",
           ),
         );
-      if (typeof message.error === "string") return fail(new Error(message.error));
-      if (message.ready !== true)
+      if (typeof message["error"] === "string")
+        return fail(new Error(message["error"]));
+      if (message["ready"] !== true)
         return fail(new Error("Invalid Benzo gateway response."));
       settled = true;
       clean();

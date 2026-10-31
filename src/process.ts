@@ -43,7 +43,10 @@ export function launch(
     stdio: options.stdio ?? ["ignore", "pipe", "pipe"],
   });
 }
-export async function stop(child: ChildProcess | number | undefined, { timeout = 1500 }: { timeout?: number } = {}): Promise<void> {
+export async function stop(
+  child: ChildProcess | number | undefined,
+  { timeout = 1500 }: { timeout?: number } = {},
+): Promise<void> {
   const pid = typeof child === "number" ? child : child?.pid;
   if (!pid) return;
   if (process.platform === "win32") {

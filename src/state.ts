@@ -16,7 +16,9 @@ export const hash = (value: string): string =>
   createHash("sha256").update(value).digest("hex").slice(0, 24);
 export const canonicalPath = (cwd: string): string => realpathSync(cwd);
 export function homeDirectory() {
-  return resolve(process.env.BENZO_HOME ?? join(homedir(), ".cache", "benzo"));
+  return resolve(
+    process.env["BENZO_HOME"] ?? join(homedir(), ".cache", "benzo"),
+  );
 }
 export function stateDirectory(cwd: string): string {
   const directory = join(
@@ -56,11 +58,12 @@ export function readJson(path: string): JsonObject | undefined {
   try {
     return JSON.parse(readFileSync(path, "utf8")) as JsonObject;
   } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined;
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return undefined;
     throw new Error(`Invalid Benzo state at ${path}. Run benzo doctor.`);
   }
 }
-export function atomicJson(path: string, value: JsonValue): void {
+export function atomicJson(path: string, value: JsonValue | object): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const temp = `${path}.${randomUUID()}.tmp`;
   writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
@@ -69,7 +72,7 @@ export function atomicJson(path: string, value: JsonValue): void {
 export function readState(cwd: string): JsonObject | undefined {
   return readJson(join(stateDirectory(cwd), "state.json"));
 }
-export function writeState(cwd: string, state: JsonValue): void {
+export function writeState(cwd: string, state: JsonValue | object): void {
   atomicJson(join(stateDirectory(cwd), "state.json"), state);
 }
 export function removeState(cwd: string): void {
@@ -85,6 +88,6 @@ export function writePreferences(cwd: string, preferences: JsonValue): void {
 export function readLastState(cwd: string): JsonObject | undefined {
   return readJson(join(stateDirectory(cwd), "last.json"));
 }
-export function writeLastState(cwd: string, state: JsonValue): void {
+export function writeLastState(cwd: string, state: JsonValue | object): void {
   atomicJson(join(stateDirectory(cwd), "last.json"), state);
 }
