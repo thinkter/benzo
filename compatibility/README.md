@@ -144,3 +144,15 @@ Excalidraw's `cleanupScope` records the checked listener classes: baseline and
 application services on IPv4, gateway control ports on IPv4, and gateway HTTP
 listeners on both IPv4 and IPv6. A live listener, timeout or non-refusal network
 error prevents a cleanup pass.
+
+The full run preserved in `state-in-url-linux-portless-port-conflict.json`
+passed all eight original-command journeys, Benzo worktree journeys and cleanup
+checks, but failed the React Router 7 Portless comparison (31/32 checks passed).
+The private log showed Vite finding requested port 45885 occupied and selecting
+45886, while the proxy continued targeting the requested port. The owner of the
+occupied port was not established; this is not proof of a Portless product bug.
+The subsequent isolated Router 7 run passed all four checks. Its latest report
+is intentionally `partial`, with other examples marked `not-run`; it does not
+replace or erase the failed full comparison. Older reports' `configured.result`
+inherited the overall comparison verdict. New reports calculate that field from
+selected original/Benzo/cleanup scenarios independently of competitor results.

@@ -2,9 +2,123 @@
   "project": "state-in-url",
   "repository": "https://github.com/asmyshlyaev177/state-in-url.git",
   "commit": "8edfd055ddb06da34bfaf4b9cdae50e6562d5eb9",
-  "benzoBuild": "2cf84dbee97775685242e5f4fe6e18958482a7b347f09e326ccb5bdd9f2d9373",
-  "harnessSha256": "45bb79f42f0472277145c875ce2d43152aebacf613438cebf660e1f257e5ce61",
-  "testedAt": "2026-10-31T13:23:33.967Z",
+  "benzoBuild": "5de252a44aaa8856987c5aacd1da7ffc23269bba8cae30fb154d20634bc80b8d",
+  "harnessSha256": "0f36ec9358615a740e0893383da1743fa171f264398c4abba5c49f775718f8c3",
+  "harnessInputs": [
+    {
+      "path": "compatibility/acceptance.mjs",
+      "sha256": "0704f87ab64f10dcc4fb7ee3842238df62b753dceef8d86612bec6fa5b64d2bd"
+    },
+    {
+      "path": "compatibility/consumers.mjs",
+      "sha256": "3e82e95c22e7bc01287a1a191dd435f83471be171eee0418bd1d8b59e1564763"
+    },
+    {
+      "path": "compatibility/evidence.mjs",
+      "sha256": "ebc424f16c6c838dd51630e8a7316380137ac88264c983b3f5fb507dfd80b096"
+    },
+    {
+      "path": "compatibility/recipes/projects.json",
+      "sha256": "b8145c164f5c6417c366bcacc2b2bd6f8e7bb051a4e42dbc0e63d879d4fd1345"
+    },
+    {
+      "path": "compatibility/run.mjs",
+      "sha256": "adc0e99b03e87000e90d0e6058f6b9f5532cd8330dbe102b438f675db31987a2"
+    },
+    {
+      "path": "package.json",
+      "sha256": "39791dc5de99dc047a8a81a82496437b12abb824d0cd63d417227c5066c1ab78"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "sha256": "1428519b97493a30a254eb01c691b903eb092a57334a7a3157bcef197fc852e1"
+    },
+    {
+      "path": "src/association.js",
+      "sha256": "b1b0adc79c750f763f20f045df68aa995e3113c76adb5fd7a53d3f00b53c8957"
+    },
+    {
+      "path": "src/callback-form.js",
+      "sha256": "8fcff5fb64151128c204ec588a3bda5c1b99295ecc4d0c71b3e1c51b50c25ec7"
+    },
+    {
+      "path": "src/cli.js",
+      "sha256": "0b9b926201cde378523f7d96db29b7310c0aa5d082905dad063761e7ba7f5427"
+    },
+    {
+      "path": "src/client.js",
+      "sha256": "a5f74eaae199c1b5c60de3cea97f1c0c1dba690744944f60dae5b891f515bba6"
+    },
+    {
+      "path": "src/config.js",
+      "sha256": "158c762290391f4e34ff5c001c23f25b16af8de6bd3c763e8e05235b59ed68fa"
+    },
+    {
+      "path": "src/core.js",
+      "sha256": "bc348751dc729118587d2d8aa578c21edaf8faffbe371e2994056fdd80bf8824"
+    },
+    {
+      "path": "src/daemon.js",
+      "sha256": "d164ce1ea4e2bc63f5386dd6f91bd1ddcf2fe814b524fd96ba97ad08e040ba4a"
+    },
+    {
+      "path": "src/descriptor.js",
+      "sha256": "bd78c1b4ddbc134b5ae2269c7f59ac6abc3c34dc681f3e430fc85265331b740e"
+    },
+    {
+      "path": "src/gateway.js",
+      "sha256": "67096f746493a7635c8d93e8a6420033ec7b642ae39d549d6dc332300628357b"
+    },
+    {
+      "path": "src/index.js",
+      "sha256": "db4b899577bdfb92a080706bd3d79c955d78d98a223c048c87815ce330ba17ad"
+    },
+    {
+      "path": "src/manifest.js",
+      "sha256": "2e9a157ae55aa59be117fa2eaa338a2793306ad58fd06f929ee9e211c287a187"
+    },
+    {
+      "path": "src/origin.js",
+      "sha256": "95cdc9ad1687bee6302c97f474789584b40d6bc1842337fa0df666c72455a204"
+    },
+    {
+      "path": "src/plan.js",
+      "sha256": "bcf1c5d2b2c48b870ca6554f1b6d4190cd291ea67b3ef10fca6aa702c560746a"
+    },
+    {
+      "path": "src/portless-plan.js",
+      "sha256": "1945ba765637983ddd55696ac4c74c7ad10fe5807d4f4d43488aa7e83e8d11e2"
+    },
+    {
+      "path": "src/portless.js",
+      "sha256": "b86f096f134948f4a6003aa86013019fb985df7d09b2beb4cd0d2e4f9aea3f36"
+    },
+    {
+      "path": "src/process.js",
+      "sha256": "f78a939ffb8fca7784bd7214364142435e0b3a26e8fb945111a0df574bcd32ca"
+    },
+    {
+      "path": "src/protocol.js",
+      "sha256": "e820f784dc6cd844a3dc013d671f4dc4a407e59ec057ffb3cfc35de89a9d65b2"
+    },
+    {
+      "path": "src/runtime.js",
+      "sha256": "96b867476789a0bdd34f8ddaaef6aaeafb3992d5a99fd49f79915e72c2f92f15"
+    },
+    {
+      "path": "src/sdk.js",
+      "sha256": "385e0b63886068f5a4a47fcfffee78a00eb96ef7ee64f6a123cac118a1ac02ae"
+    },
+    {
+      "path": "src/state.js",
+      "sha256": "bde36397b7a60a7a415b1aa1bfe8c63c326ff5103d8e1ab4086d0b6ca731c44b"
+    },
+    {
+      "path": "src/tls.js",
+      "sha256": "e6474c57118d54e15b8df8a870330f345e78645c64ab1994adf8927a236687e7"
+    }
+  ],
+  "testedAt": "2026-10-31T13:48:58.681Z",
   "platform": {
     "os": "linux",
     "architecture": "x64",
@@ -21,14 +135,7 @@
     "result": "passed",
     "scope": "selected example apps, not the repository root",
     "selectedApps": [
-      "react",
-      "react-router6",
-      "react-router7",
-      "remix2",
-      "astro",
-      "nextjs14",
-      "nextjs15",
-      "nextjs16"
+      "react-router7"
     ],
     "argv": [
       "dev",
@@ -41,80 +148,29 @@
     ]
   },
   "baseline": "passed",
-  "result": "passed",
+  "result": "partial",
   "applicationChangesRequired": false,
   "scenarios": [
     {
-      "case": "react:baseline",
-      "lane": "original-command",
-      "result": "passed",
-      "durationMs": 2078
-    },
-    {
-      "case": "react:portless",
-      "lane": "portless",
-      "origin": "http://example-react.localhost:34209",
-      "result": "passed",
-      "durationMs": 3104
-    },
-    {
       "case": "react:consumer-parity",
-      "lane": "packaged-benzo",
-      "applicationEdits": 0,
-      "manifestFiles": 0,
-      "result": "passed",
-      "originPreserved": true,
-      "comparedWithPortless": true,
-      "hmrIsolation": "passed",
-      "stopPreservesPeer": true,
-      "durationMs": 3814
-    },
-    {
-      "case": "react:cleanup",
-      "result": "passed",
-      "durationMs": 603
-    },
-    {
-      "case": "react-router6:baseline",
-      "lane": "original-command",
-      "result": "passed",
-      "durationMs": 2890
-    },
-    {
-      "case": "react-router6:portless",
-      "lane": "portless",
-      "origin": "http://example-react-router6.localhost:33927",
-      "result": "passed",
-      "durationMs": 4110
+      "result": "not-run"
     },
     {
       "case": "react-router6:consumer-parity",
-      "lane": "packaged-benzo",
-      "applicationEdits": 0,
-      "manifestFiles": 0,
-      "result": "passed",
-      "originPreserved": true,
-      "comparedWithPortless": true,
-      "stopPreservesPeer": true,
-      "durationMs": 6376
-    },
-    {
-      "case": "react-router6:cleanup",
-      "result": "passed",
-      "durationMs": 603
+      "result": "not-run"
     },
     {
       "case": "react-router7:baseline",
       "lane": "original-command",
       "result": "passed",
-      "durationMs": 2926
+      "durationMs": 2915
     },
     {
       "case": "react-router7:portless",
       "lane": "portless",
-      "origin": "http://example-react-router7.localhost:46715",
+      "origin": "http://example-react-router7.localhost:42047",
       "result": "passed",
-      "durationMs": 4094
+      "durationMs": 3939
     },
     {
       "case": "react-router7:consumer-parity",
@@ -125,161 +181,36 @@
       "originPreserved": true,
       "comparedWithPortless": true,
       "stopPreservesPeer": true,
-      "durationMs": 6264
+      "durationMs": 6005
     },
     {
       "case": "react-router7:cleanup",
       "result": "passed",
-      "durationMs": 601
-    },
-    {
-      "case": "remix2:baseline",
-      "lane": "original-command",
-      "result": "passed",
-      "durationMs": 4415
-    },
-    {
-      "case": "remix2:portless",
-      "lane": "portless",
-      "origin": "http://example-remix2.localhost:33989",
-      "result": "passed",
-      "durationMs": 5466
-    },
-    {
-      "case": "remix2:consumer-parity",
-      "lane": "packaged-benzo",
-      "applicationEdits": 0,
-      "manifestFiles": 0,
-      "result": "passed",
-      "originPreserved": true,
-      "comparedWithPortless": true,
-      "stopPreservesPeer": true,
-      "durationMs": 7994
-    },
-    {
-      "case": "remix2:cleanup",
-      "result": "passed",
-      "durationMs": 602
-    },
-    {
-      "case": "astro:baseline",
-      "lane": "original-command",
-      "result": "passed",
-      "durationMs": 5196
-    },
-    {
-      "case": "astro:portless",
-      "lane": "portless",
-      "origin": "http://example-astro.localhost:45427",
-      "result": "passed",
-      "durationMs": 5655
-    },
-    {
-      "case": "astro:consumer-parity",
-      "lane": "packaged-benzo",
-      "applicationEdits": 0,
-      "manifestFiles": 0,
-      "result": "passed",
-      "originPreserved": true,
-      "comparedWithPortless": true,
-      "stopPreservesPeer": true,
-      "durationMs": 8803
-    },
-    {
-      "case": "astro:cleanup",
-      "result": "passed",
       "durationMs": 603
     },
     {
-      "case": "nextjs14:baseline",
-      "lane": "original-command",
-      "result": "passed",
-      "durationMs": 6632
+      "case": "remix2:consumer-parity",
+      "result": "not-run"
     },
     {
-      "case": "nextjs14:portless",
-      "lane": "portless",
-      "origin": "http://example-nextjs14.localhost:38737",
-      "result": "passed",
-      "durationMs": 7475
+      "case": "astro:consumer-parity",
+      "result": "not-run"
     },
     {
       "case": "nextjs14:consumer-parity",
-      "lane": "packaged-benzo",
-      "applicationEdits": 0,
-      "manifestFiles": 0,
-      "result": "passed",
-      "originPreserved": true,
-      "comparedWithPortless": true,
-      "stopPreservesPeer": true,
-      "durationMs": 12666
-    },
-    {
-      "case": "nextjs14:cleanup",
-      "result": "passed",
-      "durationMs": 602
-    },
-    {
-      "case": "nextjs15:baseline",
-      "lane": "original-command",
-      "result": "passed",
-      "durationMs": 7594
-    },
-    {
-      "case": "nextjs15:portless",
-      "lane": "portless",
-      "origin": "http://example-nextjs15.localhost:33649",
-      "result": "passed",
-      "durationMs": 8164
+      "result": "not-run"
     },
     {
       "case": "nextjs15:consumer-parity",
-      "lane": "packaged-benzo",
-      "applicationEdits": 0,
-      "manifestFiles": 0,
-      "result": "passed",
-      "originPreserved": true,
-      "comparedWithPortless": true,
-      "stopPreservesPeer": true,
-      "durationMs": 14442
-    },
-    {
-      "case": "nextjs15:cleanup",
-      "result": "passed",
-      "durationMs": 752
-    },
-    {
-      "case": "nextjs16:baseline",
-      "lane": "original-command",
-      "result": "passed",
-      "durationMs": 6576
-    },
-    {
-      "case": "nextjs16:portless",
-      "lane": "portless",
-      "origin": "http://example-nextjs16.localhost:39033",
-      "result": "passed",
-      "durationMs": 7315
+      "result": "not-run"
     },
     {
       "case": "nextjs16:consumer-parity",
-      "lane": "packaged-benzo",
-      "applicationEdits": 0,
-      "manifestFiles": 0,
-      "result": "passed",
-      "originPreserved": true,
-      "comparedWithPortless": true,
-      "stopPreservesPeer": true,
-      "durationMs": 9837
-    },
-    {
-      "case": "nextjs16:cleanup",
-      "result": "passed",
-      "durationMs": 602
+      "result": "not-run"
     }
   ],
   "schemaVersion": 2,
-  "replacement": "passed-scoped-trial",
+  "replacement": "not-established",
   "execution": "completed",
   "reproduction": "pnpm test:compat state-in-url",
   "discovery": "unsupported",
