@@ -68,18 +68,31 @@ export async function runClient({
   let cancelled: NodeJS.Signals | undefined;
   let stopping: Promise<void> | undefined;
   const stopOnce = () => (stopping ??= stop(child));
+  let rejectCancellation: (error: Error) => void = () => {};
+  const cancellationFailure = new Promise<never>((_resolve, reject) => {
+    rejectCancellation = reject;
+  });
+  const cancel = async (): Promise<void> => {
+    try {
+      await stopOnce();
+    } catch (error) {
+      rejectCancellation(
+        error instanceof Error ? error : new Error("Client cleanup failed."),
+      );
+    }
+  };
   const interrupt = () => {
     cancelled ??= "SIGINT";
-    void stopOnce();
+    void cancel();
   };
   const terminate = () => {
     cancelled ??= "SIGTERM";
-    void stopOnce();
+    void cancel();
   };
   process.on("SIGINT", interrupt);
   process.on("SIGTERM", terminate);
   try {
-    const result = await new Promise<{
+    const exited = new Promise<{
       code: number | null;
       signal: NodeJS.Signals | null;
     }>((accept, reject) => {
@@ -94,14 +107,18 @@ export async function runClient({
         accept({ code, signal }),
       );
     });
+    const result = await Promise.race([exited, cancellationFailure]);
     await stopOnce(); // Also clean up descendants if the command leader exits.
     const signal = cancelled ?? result.signal ?? undefined;
     return signal
       ? 128 + (constants.signals[signal as keyof typeof constants.signals] ?? 1)
       : (result.code ?? 1);
   } finally {
-    await stopOnce();
-    process.off("SIGINT", interrupt);
-    process.off("SIGTERM", terminate);
+    try {
+      await stopOnce();
+    } finally {
+      process.off("SIGINT", interrupt);
+      process.off("SIGTERM", terminate);
+    }
   }
 }

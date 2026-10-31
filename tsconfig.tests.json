@@ -5,7 +5,10 @@
     "outDir": ".test-dist",
     "declaration": false,
     "declarationMap": false,
-    "types": ["node", "bun"]
+    "types": [
+      "node",
+      "bun"
+    ]
   },
   "include": [
     "test/streaming.test.ts",
@@ -15,6 +18,7 @@
     "test/tls.test.ts",
     "test/lifecycle-soak.test.ts",
     "test/browser/tls.test.ts",
-    "test/browser/form-post.test.ts"
+    "test/browser/form-post.test.ts",
+    "test/cleanup.test.ts"
   ]
 }

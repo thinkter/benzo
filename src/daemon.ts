@@ -342,7 +342,7 @@ export async function runGateway(config: GatewayLaunch) {
             if (peers.get(cwd) !== peer) return;
             peers.delete(cwd);
             peer.hosts.forEach((host) => routes.delete(host));
-            for (const pid of peer.children) void stop(pid);
+            for (const pid of peer.children) void stopOwned(pid);
             if (!peers.size) idle = setTimeout(() => void shutdown(), 750);
           });
           for (const [index, service] of registered.services.entries()) {
@@ -423,6 +423,16 @@ export async function runGateway(config: GatewayLaunch) {
       { multiple: true },
     );
   });
+  async function stopOwned(child: ChildProcess | number): Promise<void> {
+    try {
+      await stop(child);
+    } catch (error) {
+      console.error(
+        "Benzo gateway could not stop an owned process:",
+        error instanceof Error ? error.message : "Cleanup failed.",
+      );
+    }
+  }
   function shutdown() {
     return (stopping ??= (async () => {
       clearTimeout(idle);
@@ -431,7 +441,7 @@ export async function runGateway(config: GatewayLaunch) {
       await Promise.all(gateways.map((gateway) => gateway.close()));
       await Promise.all(
         [...backends.values()].map(async (backend) => {
-          await stop(backend.child);
+          await stopOwned(backend.child);
           backend.stream.end();
         }),
       );
