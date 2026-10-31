@@ -12,6 +12,8 @@ export function harnessProvenance(root) {
     ...readdirSync(join(root, "src"))
       .filter((name) => name.endsWith(".ts"))
       .map((name) => `src/${name}`),
+    ...readdirSync(join(root, "dist")).filter(name => name.endsWith(".js")).map(name => `dist/${name}`),
+    "tsconfig.json",
     "compatibility/recipes/projects.json",
     "package.json",
     "pnpm-lock.yaml",

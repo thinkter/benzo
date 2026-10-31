@@ -55,6 +55,7 @@ test("bench provenance changes with verdicts, recipes and runtime helpers", asyn
   try {
     await mkdir(join(root, "compatibility/recipes"), { recursive: true });
     await mkdir(join(root, "src"));
+    await mkdir(join(root, "dist"));
     const files = [
       "compatibility/run.mjs",
       "compatibility/consumers.mjs",
@@ -62,6 +63,8 @@ test("bench provenance changes with verdicts, recipes and runtime helpers", asyn
       "compatibility/evidence.mjs",
       "compatibility/recipes/projects.json",
       "src/process.ts",
+      "dist/process.js",
+      "tsconfig.json",
       "package.json",
       "pnpm-lock.yaml",
     ];
