@@ -1,8 +1,4 @@
-import type {
-  ManifestInput,
-  NormalizedManifest,
-  PackageJson,
-} from "./types.js";
+import type { ManifestInput, NormalizedManifest, JsonObject } from "./types.js";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { jsonObject } from "./wire.js";
@@ -141,40 +137,33 @@ export function framework(
   if (/(?:^|\s)remix\s+vite:dev(?:\s|$)/.test(script)) return "remix";
   return undefined;
 }
-function readPackage(path: string): PackageJson {
-  const value = jsonObject(readFileSync(path, "utf8"));
-  const result: PackageJson = {};
-  const fail = (field: string): never => {
-    throw new Error(`Invalid package.json field ${field} at ${path}.`);
-  };
-  if (value["packageManager"] !== undefined) {
-    if (typeof value["packageManager"] !== "string") fail("packageManager");
-    else result.packageManager = value["packageManager"];
-  }
-  const scripts = value["scripts"];
-  if (scripts !== undefined) {
-    if (
-      scripts === null ||
-      typeof scripts !== "object" ||
-      Array.isArray(scripts)
-    )
-      return fail("scripts");
-    const entries: [string, string][] = [];
-    for (const [key, entry] of Object.entries(scripts)) {
-      if (typeof entry !== "string") return fail("scripts");
-      entries.push([key, entry]);
-    }
-    result.scripts = Object.fromEntries(entries);
-  }
-  if (value["benzo"] !== undefined) {
-    validateManifestShape(value["benzo"]);
-    result.benzo = value["benzo"] as ManifestInput;
-  }
-  if (value["portless"] !== undefined) result.portless = value["portless"];
-  return result;
+function readPackage(path: string): JsonObject {
+  return jsonObject(readFileSync(path, "utf8"));
 }
-function packageManager(root: string, pkg: PackageJson): string {
-  if (pkg.packageManager) return pkg.packageManager.split("@")[0] ?? "npm";
+function packageString(value: JsonObject, field: string): string | undefined {
+  const entry = value[field];
+  if (entry === undefined) return undefined;
+  if (typeof entry !== "string")
+    throw new Error(`Invalid package.json field ${field}.`);
+  return entry;
+}
+function packageScripts(pkg: JsonObject): JsonObject {
+  const value = pkg["scripts"];
+  if (value === undefined) return {};
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    throw new Error("Invalid package.json field scripts.");
+  return value;
+}
+function packageScript(scripts: JsonObject, name: string): string | undefined {
+  const value = scripts[name];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string")
+    throw new Error("Invalid package.json field scripts.");
+  return value;
+}
+function packageManager(root: string, pkg: JsonObject): string {
+  const manager = packageString(pkg, "packageManager");
+  if (manager) return manager.split("@")[0] ?? "npm";
   for (let directory = resolve(root); ;) {
     if (existsSync(join(directory, "pnpm-lock.yaml"))) return "pnpm";
     if (existsSync(join(directory, "yarn.lock"))) return "yarn";
@@ -189,8 +178,8 @@ function packageManager(root: string, pkg: PackageJson): string {
     const path = join(parent, "package.json");
     if (existsSync(path)) {
       const ancestor = readPackage(path);
-      if (ancestor.packageManager)
-        return ancestor.packageManager.split("@")[0] ?? "npm";
+      const manager = packageString(ancestor, "packageManager");
+      if (manager) return manager.split("@")[0] ?? "npm";
     }
     directory = parent;
   }
@@ -220,7 +209,7 @@ function nestedFramework(
     if (existsSync(path))
       return nestedFramework(
         directory,
-        readPackage(path).scripts?.[match[2] ?? ""],
+        packageScript(packageScripts(readPackage(path)), match[2] ?? ""),
         depth + 1,
       );
   }
@@ -245,10 +234,14 @@ function discoverInput(
       "No package.json or Benzo config found. Run benzo dev -- <your-server> [args], or use --config <file>.",
     );
   const pkg = readPackage(path);
-  if (pkg.benzo) return pkg.benzo;
-  script ??= pkg.scripts?.["dev"] ? "dev" : "start";
+  if (pkg["benzo"] !== undefined) {
+    validateManifestShape(pkg["benzo"]);
+    return pkg["benzo"] as ManifestInput;
+  }
+  const scripts = packageScripts(pkg);
+  script ??= scripts["dev"] ? "dev" : "start";
   if (!script) throw new Error("No dev or start script found.");
-  const scriptText = pkg.scripts?.[script] ?? "";
+  const scriptText = packageScript(scripts, script) ?? "";
   if (
     scriptText !== "" &&
     (/\b(?:turbo|nx|concurrently|docker|wireit)\b/.test(scriptText) ||
@@ -259,9 +252,16 @@ function discoverInput(
     throw new Error(
       `The ${script} script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application.`,
     );
-  const unwrapped = unwrapPortless(pkg, script);
+  const selectedScripts: Record<string, string> = { [script]: scriptText };
+  if (/^portless(?:\s|$)/.test(scriptText.trim())) {
+    for (const hook of [`pre${script}`, `post${script}`]) {
+      if (scripts[hook])
+        selectedScripts[hook] = packageScript(scripts, hook) ?? "";
+    }
+  }
+  const unwrapped = unwrapPortless({ scripts: selectedScripts }, script);
   if (unwrapped) {
-    if (pkg.portless || existsSync(join(cwd, "portless.json")))
+    if (pkg["portless"] || existsSync(join(cwd, "portless.json")))
       throw new Error(
         "Portless configuration requires explicit integration; use --script or an external Benzo config.",
       );
@@ -276,11 +276,11 @@ function discoverInput(
       ],
     };
   }
-  if (/(?:^|\s)portless(?:\s|$)/.test(pkg.scripts?.[script] ?? ""))
+  if (/(?:^|\s)portless(?:\s|$)/.test(scriptText))
     throw new Error(
       "This script already invokes Portless. Select the original application script with --script, or supply its command after --. Automatic Portless migration is not implemented.",
     );
-  const detected = nestedFramework(cwd, pkg.scripts?.[script]);
+  const detected = nestedFramework(cwd, scriptText);
   const manager = packageManager(cwd, pkg);
   if (detected) {
     const flags =
@@ -309,7 +309,7 @@ function discoverInput(
       ],
     };
   }
-  if (pkg.scripts?.[script]) {
+  if (scriptText) {
     if (/\bbenzo\b/.test(scriptText))
       throw new Error(
         "This script already invokes Benzo. Use --script to select the original application dev script.",

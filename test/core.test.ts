@@ -848,6 +848,24 @@ test("discovery validates package fields at root, ancestor and delegated package
         /Expected a JSON object|Invalid package.json field|Invalid Benzo config/,
       );
     }
+    await write(root, { scripts: { dev: "node server.js", unused: null } });
+    assert.equal(discoverManifest(root).services[0]?.command, "npm");
+    await write(root, {
+      packageManager: "pnpm@10.26.0",
+      scripts: { unused: null },
+      benzo: [],
+    });
+    await write(nested, { scripts: { dev: "vite", unused: {} } });
+    assert.equal(discoverManifest(nested).services[0]?.command, "pnpm");
+    await write(root, { scripts: { dev: "pnpm --cwd app dev", unused: null } });
+    await write(nested, {
+      scripts: { dev: "vite", unused: [] },
+      packageManager: 123,
+    });
+    assert.equal(
+      discoverManifest(root).services[0]?.args?.includes("--host"),
+      true,
+    );
     await write(root, { packageManager: 123 });
     await write(nested, { scripts: { dev: "vite" } });
     assert.throws(
