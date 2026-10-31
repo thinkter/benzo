@@ -17,6 +17,7 @@
     "test/browser/tls.test.ts",
     "test/browser/form-post.test.ts",
     "test/cleanup.test.ts",
-    "test/browser/auth.test.ts"
+    "test/browser/auth.test.ts",
+    "test/browser/frameworks.test.ts"
   ]
 }

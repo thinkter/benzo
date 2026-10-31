@@ -34,7 +34,7 @@
   "scripts": {
     "test": "node --test test/core.test.js test/auth.test.js test/runtime.test.js .test-dist/test/better-auth.test.js test/acceptance.test.js .test-dist/test/streaming.test.js .test-dist/test/portless-plan.test.js .test-dist/test/tls.test.js .test-dist/test/test-watch.test.js .test-dist/test/cleanup.test.js",
     "test:watch": "node .tools-dist/scripts/test-watch.js",
-    "test:browser": "node --test .test-dist/test/browser/auth.test.js test/browser/frameworks.test.js .test-dist/test/browser/tls.test.js .test-dist/test/browser/form-post.test.js",
+    "test:browser": "node --test .test-dist/test/browser/auth.test.js .test-dist/test/browser/frameworks.test.js .test-dist/test/browser/tls.test.js .test-dist/test/browser/form-post.test.js",
     "test:soak": "node --test .test-dist/test/lifecycle-soak.test.js",
     "test:compat": "node compatibility/run.mjs",
     "lab:clients": "node --test compatibility/lab/clients.test.js",
