@@ -4,11 +4,11 @@
   "description": "Reusable named development servers for Git worktrees",
   "type": "module",
   "bin": {
-    "benzo": "dist/cli.js"
+    "benzo": "src/cli.js"
   },
   "exports": {
-    ".": "./dist/index.js",
-    "./core": "./dist/core.js"
+    ".": "./src/index.js",
+    "./core": "./src/core.js"
   },
   "files": [
     "src",
@@ -31,8 +31,7 @@
     "test:compat": "node compatibility/run.mjs",
     "lab:clients": "node --test compatibility/lab/clients.test.js",
     "build": "tsc",
-    "typecheck": "tsc --noEmit",
-    "prepack": "npm run build"
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
     "node": ">=20.19.0"
