@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".test-dist",
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["node", "bun"]
+  },
+  "include": ["test/streaming.test.ts", "test/better-auth.test.ts"]
+}

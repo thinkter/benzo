@@ -7,3 +7,4 @@ playwright-report/
 
 dist/
 .typed-check/
+.test-dist/

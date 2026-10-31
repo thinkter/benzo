@@ -1,24 +1,53 @@
+import type { Server, IncomingHttpHeaders } from "node:http";
+import type { JsonValue, JsonObject } from "../src/types.js";
+function portOf(server: Server): number {
+  const address = server.address();
+  if (!address || typeof address === "string")
+    throw new Error("Expected TCP listener.");
+  return address.port;
+}
+function object(value: JsonValue): JsonObject {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("Expected JSON object.");
+  return value;
+}
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer, request as httpRequest } from "node:http";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { toNodeHandler } from "better-auth/node";
-import { createGateway } from "../dist/core.js";
-const listen = (server) =>
-  new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const close = (server) =>
-  new Promise((resolve) => {
-    server.close(resolve);
+import { createGateway } from "../src/core.js";
+const listen = (server: Server) =>
+  new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+const close = (server: Server) =>
+  new Promise<void>((resolve) => {
+    server.close(() => resolve());
     server.closeAllConnections?.();
   });
 function request(
-  port,
-  path,
-  { host, method = "GET", body, cookie, origin = `http://${host}` },
+  port: number,
+  path: string,
+  {
+    host,
+    method = "GET",
+    body,
+    cookie,
+    origin = `http://${host}`,
+  }: {
+    host: string;
+    method?: string;
+    body?: JsonValue;
+    cookie?: string;
+    origin?: string;
+  },
 ) {
-  return new Promise((accept, reject) => {
-    const encoded = body && JSON.stringify(body);
+  return new Promise<{
+    status: number | undefined;
+    headers: IncomingHttpHeaders;
+    body: JsonValue;
+  }>((accept, reject) => {
+    const encoded = body === undefined ? undefined : JSON.stringify(body);
     const req = httpRequest(
       {
         host: "127.0.0.1",
@@ -32,7 +61,7 @@ function request(
           ...(body
             ? {
                 "content-type": "application/json",
-                "content-length": Buffer.byteLength(encoded),
+                "content-length": Buffer.byteLength(encoded ?? ""),
               }
             : {}),
           ...(cookie ? { cookie } : {}),
@@ -45,7 +74,7 @@ function request(
           accept({
             status: response.statusCode,
             headers: response.headers,
-            body: text ? JSON.parse(text) : null,
+            body: text ? (JSON.parse(text) as JsonValue) : null,
           }),
         );
       },
@@ -75,12 +104,12 @@ test("real Better Auth defaults work through named gateway without auth configur
   const gateway = createGateway({
     port: 0,
     routes: new Map([
-      ["first.localhost", app.address().port],
-      ["second.localhost", app.address().port],
+      ["first.localhost", portOf(app)],
+      ["second.localhost", portOf(app)],
     ]),
   });
   await gateway.listen();
-  const port = gateway.server.address().port;
+  const port = portOf(gateway.server);
   try {
     const signup = await request(port, "/api/auth/sign-up/email", {
       host: `first.localhost:${port}`,
@@ -92,18 +121,17 @@ test("real Better Auth defaults work through named gateway without auth configur
       },
     });
     assert.equal(signup.status, 200, JSON.stringify(signup.body));
+    assert.ok(signup.headers["set-cookie"]);
     const cookie = signup.headers["set-cookie"]
       .map((value) => value.split(";")[0])
       .join("; ");
-    assert.equal(
-      (
-        await request(port, "/api/auth/get-session", {
-          host: `first.localhost:${port}`,
-          cookie,
-        })
-      ).body.user.email,
-      "benzo@example.invalid",
-    );
+    const session = await request(port, "/api/auth/get-session", {
+      host: `first.localhost:${port}`,
+      cookie,
+    });
+    const user = object(session.body)["user"];
+    assert.ok(user);
+    assert.equal(object(user)["email"], "benzo@example.invalid");
     assert.equal(
       (
         await request(port, "/api/auth/get-session", {
@@ -142,12 +170,12 @@ test("fixed auth baseURL incompatibility remains a visible 403; gateway never by
   await listen(app);
   const gateway = createGateway({
     port: 0,
-    routes: new Map([["feature.localhost", app.address().port]]),
+    routes: new Map([["feature.localhost", portOf(app)]]),
   });
   await gateway.listen();
   try {
     const result = await request(
-      gateway.server.address().port,
+      portOf(gateway.server),
       "/api/auth/sign-up/email",
       {
         host: "feature.localhost:3000",
@@ -160,7 +188,10 @@ test("fixed auth baseURL incompatibility remains a visible 403; gateway never by
       },
     );
     assert.equal(result.status, 403);
-    assert.match(result.body.code, /ORIGIN/);
+    const code = object(result.body)["code"];
+    assert.equal(typeof code, "string");
+    assert.ok(typeof code === "string");
+    assert.match(code, /ORIGIN/);
   } finally {
     await gateway.close();
     await close(app);

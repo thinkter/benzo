@@ -1,23 +1,35 @@
+import type {
+  RequestListener,
+  ClientRequest,
+  IncomingHttpHeaders,
+} from "node:http";
+import type { Server } from "node:net";
+function portOf(server: Server): number {
+  const address = server.address();
+  if (!address || typeof address === "string")
+    throw new Error("Expected TCP listener.");
+  return address.port;
+}
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer, request } from "node:http";
 import { once } from "node:events";
-import { createGateway } from "../dist/gateway.js";
+import { createGateway } from "../src/gateway.js";
 
-async function fixture(handler) {
+async function fixture(handler: RequestListener) {
   const app = createServer(handler).listen(0, "127.0.0.1");
   await once(app, "listening");
   const gateway = createGateway({
     port: 0,
-    routes: new Map([["test.localhost", app.address().port]]),
+    routes: new Map([["test.localhost", portOf(app)]]),
   });
   await gateway.listen();
   return {
-    port: gateway.server.address().port,
+    port: portOf(gateway.server),
     close: async () => {
       await gateway.close();
-      await new Promise((resolve) => {
-        app.close(resolve);
+      await new Promise<void>((resolve) => {
+        app.close(() => resolve());
         app.closeAllConnections();
       });
     },
@@ -33,9 +45,13 @@ test(
         .writeHead(413, { "x-app-rejection": "too-large" })
         .end("upload rejected"),
     );
-    let sender;
+    let sender: NodeJS.Timeout | undefined;
     try {
-      const result = await new Promise((resolve, reject) => {
+      const result = await new Promise<{
+        status: number | undefined;
+        body: string;
+        header: IncomingHttpHeaders[string];
+      }>((resolve, reject) => {
         const req = request(
           {
             host: "127.0.0.1",
@@ -81,8 +97,8 @@ test(
   "SSE flushes before completion while concurrent POST bytes and statuses survive",
   { timeout: 10000 },
   async () => {
-    let disconnected;
-    const closed = new Promise((resolve) => (disconnected = resolve));
+    let disconnected: () => void = () => {};
+    const closed = new Promise<void>((resolve) => (disconnected = resolve));
     const app = await fixture(async (req, res) => {
       if (req.url === "/events") {
         res.writeHead(200, {
@@ -96,34 +112,39 @@ test(
           disconnected();
         });
       } else {
-        const chunks = [];
-        for await (const chunk of req) chunks.push(chunk);
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          if (!Buffer.isBuffer(chunk)) throw new Error("Expected buffer.");
+          chunks.push(chunk);
+        }
         res.writeHead(201).end(Buffer.concat(chunks));
       }
     });
-    let stream;
+    let stream: ClientRequest | undefined;
     try {
-      const first = await new Promise((resolve, reject) => {
-        stream = request(
-          {
-            host: "127.0.0.1",
-            port: app.port,
-            path: "/events",
-            headers: { host: "test.localhost" },
-          },
-          (res) => {
-            let body = "";
-            res.on("data", (chunk) => {
-              body += chunk;
-              if (body.includes("\n\n"))
-                resolve({ body, complete: res.complete });
-            });
-            res.once("error", reject);
-          },
-        );
-        stream.once("error", reject);
-        stream.end();
-      });
+      const first = await new Promise<{ body: string; complete: boolean }>(
+        (resolve, reject) => {
+          stream = request(
+            {
+              host: "127.0.0.1",
+              port: app.port,
+              path: "/events",
+              headers: { host: "test.localhost" },
+            },
+            (res) => {
+              let body = "";
+              res.on("data", (chunk) => {
+                body += chunk;
+                if (body.includes("\n\n"))
+                  resolve({ body, complete: res.complete });
+              });
+              res.once("error", reject);
+            },
+          );
+          stream.once("error", reject);
+          stream.end();
+        },
+      );
       assert.ok(first.body.startsWith("data: first\n\n"));
       assert.equal(
         first.complete,
@@ -133,7 +154,10 @@ test(
       await Promise.all(
         Array.from({ length: 16 }, async (_, index) => {
           const body = Buffer.from(`request-${index}:` + "x".repeat(32768));
-          const result = await new Promise((resolve, reject) => {
+          const result = await new Promise<{
+            status: number | undefined;
+            body: Buffer;
+          }>((resolve, reject) => {
             const req = request(
               {
                 host: "127.0.0.1",
@@ -143,8 +167,8 @@ test(
                 headers: { host: "test.localhost" },
               },
               (res) => {
-                const chunks = [];
-                res.on("data", (chunk) => chunks.push(chunk));
+                const chunks: Buffer[] = [];
+                res.on("data", (chunk: Buffer) => chunks.push(chunk));
                 res.once("error", reject);
                 res.once("end", () =>
                   resolve({
@@ -161,6 +185,7 @@ test(
           assert.deepEqual(result.body, body);
         }),
       );
+      assert.ok(stream);
       stream.destroy();
       await closed;
     } finally {

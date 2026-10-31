@@ -32,23 +32,24 @@
     "compatibility/reports"
   ],
   "scripts": {
-    "test": "node --test test/core.test.js test/auth.test.js test/runtime.test.js test/better-auth.test.js test/acceptance.test.js test/streaming.test.js test/portless-plan.test.js test/tls.test.js",
-    "test:watch": "node --test --watch test/core.test.js test/auth.test.js test/runtime.test.js test/better-auth.test.js test/acceptance.test.js test/streaming.test.js test/portless-plan.test.js test/tls.test.js",
+    "test": "node --test test/core.test.js test/auth.test.js test/runtime.test.js .test-dist/test/better-auth.test.js test/acceptance.test.js .test-dist/test/streaming.test.js test/portless-plan.test.js test/tls.test.js",
+    "test:watch": "node --test --watch test/core.test.js test/auth.test.js test/runtime.test.js .test-dist/test/better-auth.test.js test/acceptance.test.js .test-dist/test/streaming.test.js test/portless-plan.test.js test/tls.test.js",
     "test:browser": "node --test test/browser/auth.test.js test/browser/frameworks.test.js test/browser/tls.test.js test/browser/form-post.test.js",
     "test:soak": "node --test test/lifecycle-soak.test.js",
     "test:compat": "node compatibility/run.mjs",
     "lab:clients": "node --test compatibility/lab/clients.test.js",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "pretest": "npm run test:types",
+    "pretest": "npm run test:types && npm run build:tests",
     "prepack": "npm run build",
     "pretest:browser": "npm run build",
     "pretest:soak": "npm run build",
     "pretest:compat": "npm run build",
     "prelab:clients": "npm run build",
-    "pretest:watch": "npm run build",
+    "pretest:watch": "npm run build && npm run build:tests",
     "prepare": "npm run build",
-    "test:types": "npm run build && tsc -p tsconfig.consumer.json"
+    "test:types": "npm run build && tsc -p tsconfig.consumer.json",
+    "build:tests": "tsc -p tsconfig.tests.json"
   },
   "engines": {
     "node": ">=20.19.0"
@@ -59,6 +60,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
+    "@types/bun": "^1.4.4",
     "@types/cross-spawn": "^6.0.6",
     "@types/node": "^26.6.6",
     "better-auth": "^1.7.14",
