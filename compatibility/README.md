@@ -38,8 +38,8 @@ tracked and untracked files; ignored dependencies/build output are excluded.
 `react,remix2`); omitted apps are recorded as not-run, so this cannot establish an
 eight-app pass. The test compares the complete Portless/Benzo origin at an
 unprivileged test port. It does not run the root Wireit graph or the upstream E2E
-suite that embeds port 1355. Those remain replacement gates in the
-[roadmap](../docs/roadmap-checklist.md). Assertions are adapted from upstream;
+suite that embeds port 1355. Those are outside the current
+[product scope](../docs/roadmap-checklist.md). Assertions are adapted from upstream;
 the entire upstream test suite has not passed through Benzo.
 
 Reports record per-scenario timings/results, exact commit/tool/browser versions,
@@ -55,10 +55,10 @@ defect (BENZO-017). Fixes are followed by fresh runs, without automatic scenario
 retries or rewriting the earlier failed outcomes.
 
 An older scoped Linux run recorded 32 passing state-in-url checks; that report is
-preserved as `state-in-url-linux-before-audit.json`. The latest
-`state-in-url-linux.json` is interrupted and marks replacement `not-established`,
-after baseline/form-state and framework build problems. It does not establish a
-fresh eight-example pass. Root Wireit orchestration remains unsupported by bare
+preserved as `state-in-url-linux-before-audit.json`. The current
+`state-in-url-linux.json` records the latest attempt; inspect `execution` and
+each scenario rather than treating the historical run as a fresh eight-example
+pass. Subset runs deliberately leave omitted examples `not-run`. Root Wireit orchestration remains unsupported by bare
 automatic discovery. Sokosumi's authenticated baseline remains blocked. Benzo
 now has opt-in HTTPS, but its required HTTPS443 journey has not been executed.
 
@@ -114,3 +114,22 @@ tests on Linux, macOS and native Windows with Node 20/22/24 and browser tests wi
 Node 24; adding a workflow is not evidence those platforms passed. Firefox/WebKit,
 external OAuth providers, overnight soak and complex backend journeys remain
 untested.
+
+
+## Bare and configured bench lanes
+
+`pnpm test:compat excalidraw documenso plane state-in-url sokosumi` uses a
+fresh private Benzo home per invocation and the installed tarball. Excalidraw
+runs the original-command drawing baseline, a literal installed `benzo` with
+zero arguments from the root (default gateway port 3000), and configured
+concurrent worktrees with custom gateway arguments. The lanes are reported
+separately as `bare` and `configured`; a passing configured trial cannot hide a
+failed bare trial. A busy default port is a bare-lane failure, never justification
+for silently substituting flags. Allocated application listeners must close.
+
+Root orchestrator rejection is also exercised through the installed no-argument
+CLI for the other pinned recipes, even when backend prerequisites are unavailable.
+`unsupported` records that refusal and is not a functional pass. Configured
+state-in-url results are per-example scenarios; Docker/auth prerequisites block
+the other functional journeys. No backend or orchestrator features are added to
+Benzo to make these trials pass. Raw logs remain under ignored `.compat`.

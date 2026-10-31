@@ -227,10 +227,11 @@ State/logs live in `~/.cache/benzo` by default; set `BENZO_HOME` to move them.
 State uses private permissions where supported. Application output can contain
 sensitive information; don't publish raw logs.
 
-Linux trials passed for packaged Benzo with Excalidraw and eight state-in-url
-example apps (React, Router 6/7, Remix, Astro and Next 14/15/16), plus Vite/Next.js
-and Better Auth OAuth/PKCE browser fixtures. Consumer application files stayed
-unchanged. Root orchestration and automatic Portless migration remain unsupported.
+Packaged Linux Excalidraw trials cover a bare root launch and configured
+worktrees. State-in-url results are reported per example and lane; older passing
+runs do not establish a current eight-example pass. Separate Vite/Next.js and
+Better Auth OAuth/PKCE fixtures exercise the gateway. Consult each report for
+its source hash, execution status and exact scope. Root orchestration and automatic Portless migration remain unsupported.
 Sokosumi requires HTTPS443 and an authenticated backend baseline; Documenso and
 Plane are blocked by missing Docker prerequisites. Native Windows/macOS and
 external OAuth providers have not been demonstrated locally. See the [results and
