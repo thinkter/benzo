@@ -18,7 +18,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "@playwright/test";
 import { launch, stop } from "../dist/process.js";
 import { loadManifest } from "../dist/config.js";
-import { harnessProvenance, refusesConnection } from "./evidence.mjs";
+import { harnessProvenance, refusesConnection } from "../.tools-dist/compatibility/evidence.js";
 import { stateInUrl, sokosumi } from "./consumers.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");

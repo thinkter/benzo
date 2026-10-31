@@ -4,16 +4,22 @@ import { join } from "node:path";
 import { createConnection } from "node:net";
 
 // Include verdicts, recipes and working-tree helpers, not just the entry point.
-export function harnessProvenance(root) {
+export function harnessProvenance(root: string) {
   const paths = [
     ...readdirSync(join(root, "compatibility"))
-      .filter((name) => name.endsWith(".mjs"))
+      .filter((name) => name.endsWith(".mjs") || name.endsWith(".ts"))
       .map((name) => `compatibility/${name}`),
     ...readdirSync(join(root, "src"))
       .filter((name) => name.endsWith(".ts"))
       .map((name) => `src/${name}`),
-    ...readdirSync(join(root, "dist")).filter(name => name.endsWith(".js")).map(name => `dist/${name}`),
+    ...readdirSync(join(root, "dist"))
+      .filter((name) => name.endsWith(".js"))
+      .map((name) => `dist/${name}`),
+    ...readdirSync(join(root, ".tools-dist/compatibility"))
+      .filter((name) => name.endsWith(".js"))
+      .map((name) => `.tools-dist/compatibility/${name}`),
     "tsconfig.json",
+    "tsconfig.tools.json",
     "compatibility/recipes/projects.json",
     "package.json",
     "pnpm-lock.yaml",
@@ -32,14 +38,16 @@ export function harnessProvenance(root) {
   };
 }
 
-export function refusesConnection(port, host = "127.0.0.1") {
-  return new Promise((resolve) => {
+export function refusesConnection(port: number, host = "127.0.0.1") {
+  return new Promise<boolean>((resolve) => {
     const socket = createConnection({ host, port });
     socket.once("connect", () => {
       socket.destroy();
       resolve(false);
     });
-    socket.once("error", (error) => resolve(error.code === "ECONNREFUSED"));
+    socket.once("error", (error: NodeJS.ErrnoException) =>
+      resolve(error.code === "ECONNREFUSED"),
+    );
     socket.setTimeout(1000, () => {
       socket.destroy();
       resolve(false);

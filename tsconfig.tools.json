@@ -6,5 +6,9 @@
     "declaration": false,
     "declarationMap": false
   },
-  "include": ["scripts/**/*.ts", "compatibility/acceptance.ts"]
+  "include": [
+    "scripts/**/*.ts",
+    "compatibility/acceptance.ts",
+    "compatibility/evidence.ts"
+  ]
 }

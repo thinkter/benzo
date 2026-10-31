@@ -47,7 +47,8 @@ test("Sokosumi prerequisites are blocked evidence rather than a fictitious TLS f
 });
 
 test("bench provenance changes with verdicts, recipes and runtime helpers", async () => {
-  const { harnessProvenance } = await import("../compatibility/evidence.mjs");
+  const { harnessProvenance } =
+    await import("../.tools-dist/compatibility/evidence.js");
   const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
@@ -56,15 +57,19 @@ test("bench provenance changes with verdicts, recipes and runtime helpers", asyn
     await mkdir(join(root, "compatibility/recipes"), { recursive: true });
     await mkdir(join(root, "src"));
     await mkdir(join(root, "dist"));
+    await mkdir(join(root, ".tools-dist/compatibility"), { recursive: true });
     const files = [
       "compatibility/run.mjs",
       "compatibility/consumers.mjs",
-      "compatibility/acceptance.mjs",
-      "compatibility/evidence.mjs",
+      "compatibility/acceptance.ts",
+      "compatibility/evidence.ts",
       "compatibility/recipes/projects.json",
       "src/process.ts",
       "dist/process.js",
       "tsconfig.json",
+      "tsconfig.tools.json",
+      ".tools-dist/compatibility/acceptance.js",
+      ".tools-dist/compatibility/evidence.js",
       "package.json",
       "pnpm-lock.yaml",
     ];
@@ -88,7 +93,8 @@ test("bench provenance changes with verdicts, recipes and runtime helpers", asyn
 
 for (const host of ["127.0.0.1", "::1"]) {
   test(`cleanup probe detects a live listener on ${host}`, async (t) => {
-    const { refusesConnection } = await import("../compatibility/evidence.mjs");
+    const { refusesConnection } =
+      await import("../.tools-dist/compatibility/evidence.js");
     const { createServer } = await import("node:net");
     const server = createServer((socket) => socket.end());
     try {
