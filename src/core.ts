@@ -1,3 +1,5 @@
+import type { Server } from "node:net";
+import type { Manifest, ServiceConfig } from "./types.js";
 import { createServer } from "node:net";
 import { stripVTControlCharacters } from "node:util";
 import { listen } from "./gateway.js";
@@ -7,7 +9,7 @@ export * from "./process.js";
 export * from "./state.js";
 export * from "./protocol.js";
 
-export function worktreeName(value, maxLength = 50) {
+export function worktreeName(value: string | undefined, maxLength = 50): string {
   return (
     String(value ?? "")
       .toLowerCase()
@@ -17,7 +19,7 @@ export function worktreeName(value, maxLength = 50) {
       .replace(/-+$/g, "") || "worktree"
   );
 }
-export function availableName(preferred, occupied, baseName = preferred) {
+export function availableName(preferred: string, occupied: Set<string>, baseName = preferred): string {
   const desired = worktreeName(preferred, 63);
   if (!occupied.has(desired)) return desired;
   const base = worktreeName(baseName);
@@ -27,10 +29,10 @@ export function availableName(preferred, occupied, baseName = preferred) {
     if (!occupied.has(name)) return name;
   }
 }
-export function namedOrigin(name, service, port = 3000, protocol = "http") {
+export function namedOrigin(name: string, service: string | undefined, port = 3000, protocol = "http"): string {
   return `${protocol}://${service ? `${service}.` : ""}${name}.localhost:${port}`;
 }
-export function namedOrigins(name, services, port = 3000, protocol = "http") {
+export function namedOrigins(name: string, services: ServiceConfig[], port = 3000, protocol = "http"): Record<string, string> {
   return Object.fromEntries(
     services.map((service, index) => [
       service.name,
@@ -38,7 +40,7 @@ export function namedOrigins(name, services, port = 3000, protocol = "http") {
     ]),
   );
 }
-export function configuration(slot, manifest = {}) {
+export function configuration(slot: number, manifest: Manifest = { services: [] }): { slot: number; lock: number; ports: Record<string, number> } {
   const {
     slots = 100,
     firstPort = 10000,
@@ -58,7 +60,7 @@ export function configuration(slot, manifest = {}) {
     ),
   };
 }
-export function expand(value, context) {
+export function expand(value: string, context: Record<string, string>): string {
   return typeof value === "string"
     ? value.replace(
         /\{([a-zA-Z][a-zA-Z0-9_.-]*)\}/g,
@@ -66,15 +68,15 @@ export function expand(value, context) {
       )
     : value;
 }
-export function serviceCommand(service, context) {
+export function serviceCommand(service: ServiceConfig, context: Record<string, string>): { command: string; args: string[] } {
   return {
     command: expand(service.command, context),
     args: (service.args ?? []).map((arg) => expand(arg, context)),
   };
 }
-export async function reservePorts(ports, host = "127.0.0.1") {
-  const handles = [];
-  const close = (list) =>
+export async function reservePorts(ports: number[], host = "127.0.0.1"): Promise<(all?: boolean) => Promise<void>> {
+  const handles: Server[] = [];
+  const close = (list: Server[]): Promise<void[]> =>
     Promise.all(
       list.map(
         (server) =>
@@ -100,11 +102,11 @@ export async function reservePorts(ports, host = "127.0.0.1") {
   }
 }
 export function logLine(
-  line,
-  colour,
-  stream = process.stdout,
-  env = process.env,
-) {
+  line: string,
+  colour: number | undefined,
+  stream: NodeJS.WriteStream = process.stdout,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
   stream.write(
     stream.isTTY &&
       !Object.hasOwn(env, "NO_COLOR") &&

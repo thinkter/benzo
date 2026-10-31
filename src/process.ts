@@ -1,3 +1,4 @@
+import type { ChildProcess, SpawnOptions } from "node:child_process";
 import crossSpawn from "cross-spawn";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -5,10 +6,10 @@ import { setTimeout as delay } from "node:timers/promises";
 // Applications keep their normal environment. Filtering is explicit and never
 // changes the source object; environment values are never written to state.
 export function safeEnvironment(
-  source = process.env,
-  additions = {},
-  { exclude = [] } = {},
-) {
+  source: NodeJS.ProcessEnv = process.env,
+  additions: NodeJS.ProcessEnv = {},
+  { exclude = [] }: { exclude?: string[] } = {},
+): NodeJS.ProcessEnv {
   return {
     ...Object.fromEntries(
       Object.entries(source).filter(([key]) => !exclude.includes(key)),
@@ -21,8 +22,8 @@ export function launch(
   args = [],
   cwd = process.cwd(),
   env = process.env,
-  options = {},
-) {
+  options: SpawnOptions = {},
+): ChildProcess {
   const paths = [];
   let directory = resolve(cwd);
   for (;;) {
@@ -42,7 +43,7 @@ export function launch(
     stdio: options.stdio ?? ["ignore", "pipe", "pipe"],
   });
 }
-export async function stop(child, { timeout = 1500 } = {}) {
+export async function stop(child: ChildProcess | number | undefined, { timeout = 1500 }: { timeout?: number } = {}): Promise<void> {
   const pid = typeof child === "number" ? child : child?.pid;
   if (!pid) return;
   if (process.platform === "win32") {
