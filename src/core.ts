@@ -77,25 +77,16 @@ export function serviceCommand(service: ServiceConfig, context: Record<string, s
 export async function reservePorts(ports: number[], host = "127.0.0.1"): Promise<(all?: boolean) => Promise<void>> {
   const handles: Server[] = [];
   const close = (list: Server[]): Promise<void[]> =>
-    Promise.all(
-      list.map(
-        (server) =>
-          new Promise((accept) => {
-            try {
-              server.close(() => accept());
-            } catch {
-              accept();
-            }
-          }),
-      ),
-    );
+    Promise.all(list.map((server) => new Promise<void>((accept) => {
+      try { server.close(() => accept()); } catch { accept(); }
+    })));
   try {
     for (const port of ports) {
       const server = createServer();
       handles.push(server);
       await listen(server, port, host);
     }
-    return (all = false) => close(handles.splice(all ? 0 : 1));
+    return async (all = false): Promise<void> => { await close(handles.splice(all ? 0 : 1)); };
   } catch (error) {
     await close(handles);
     throw error;

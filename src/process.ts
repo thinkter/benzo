@@ -18,9 +18,9 @@ export function safeEnvironment(
   };
 }
 export function launch(
-  command,
-  args = [],
-  cwd = process.cwd(),
+  command: string,
+  args: string[] = [],
+  cwd: string = process.cwd(),
   env = process.env,
   options: SpawnOptions = {},
 ): ChildProcess {

@@ -7,7 +7,7 @@ export function planProvenance(
   inherited: NodeJS.ProcessEnv = process.env,
 ): Record<string, JsonValue> {
   const selected = source.kind;
-  const field = (object, key) =>
+  const field = (object: object | undefined, key: string): string =>
     Object.hasOwn(object ?? {}, key) ? selected : "default";
   return {
     requestedName:

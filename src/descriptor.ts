@@ -1,4 +1,4 @@
-import type { PublicState } from "./runtime.js";
+import type { PublicState } from "./types.js";
 // Public data only. Control tokens and supervisor addresses never belong here.
 export function environmentDescriptor(state: PublicState): EnvironmentDescriptor {
   if (!state?.instanceId || !state?.projectId || !state?.worktreeId)
@@ -16,8 +16,8 @@ export function environmentDescriptor(state: PublicState): EnvironmentDescriptor
     services: Object.entries(state.urls).map(([name, origin]) => ({
       id: `${state.worktreeId}/${name}`,
       name,
-      origin,
-      upstream: { host: '127.0.0.1', port: state.ports[name] },
+      origin: String(origin),
+      upstream: { host: '127.0.0.1', port: Number(state.ports[name]) },
       readiness: state.status === 'ready' ? 'ready' : 'not-ready',
     })),
   };

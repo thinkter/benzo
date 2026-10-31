@@ -1,5 +1,6 @@
+import type { IncomingMessage } from "node:http";
 const limit = 65536;
-function failure(status) {
+function failure(status: number): Error & { status: number } {
   return Object.assign(
     new Error("Invalid or unsupported OAuth form callback."),
     { status },
@@ -8,7 +9,7 @@ function failure(status) {
 
 // Read a bounded copy only to choose the route. A 307 asks the browser to resend
 // its original bytes; Benzo never rebuilds the form or changes cookie policy.
-export function readCallbackState(request) {
+export function readCallbackState(request: IncomingMessage): Promise<string> {
   if (
     !/^application\/x-www-form-urlencoded(?:\s*;\s*charset\s*=\s*(?:utf-8|"utf-8"))?\s*$/i.test(
       request.headers["content-type"] ?? "",
@@ -22,8 +23,8 @@ export function readCallbackState(request) {
   return new Promise((resolve, reject) => {
     let done = false,
       size = 0;
-    const chunks = [];
-    const finish = (error, state) => {
+    const chunks: Buffer[] = [];
+    const finish = (error: Error | undefined, state?: string): void => {
       if (done) return;
       done = true;
       clearTimeout(timer);
@@ -31,12 +32,14 @@ export function readCallbackState(request) {
       request.off("end", end);
       chunks.length = 0;
       if (error) reject(error);
-      else resolve(state);
+      else if (state !== undefined) resolve(state);
+      else reject(new Error("Callback state was not parsed."));
     };
-    const data = (chunk) => {
-      size += chunk.length;
-      if (size > limit) return finish(failure(413));
-      chunks.push(chunk);
+    const data = (chunk: Buffer | string): void => {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      size += bytes.length;
+      if (size > limit) return finish(failure(413), undefined);
+      chunks.push(bytes);
     };
     const end = () => {
       try {
@@ -54,14 +57,14 @@ export function readCallbackState(request) {
           throw failure(400);
         finish(undefined, states[0]);
       } catch {
-        finish(failure(400));
+        finish(failure(400), undefined);
       }
     };
-    const timer = setTimeout(() => finish(failure(408)), 5000);
+    const timer = setTimeout(() => finish(failure(408), undefined), 5000);
     timer.unref();
     request.on("data", data);
     request.once("end", end);
-    request.once("aborted", () => finish(failure(400)));
-    request.once("error", () => finish(failure(400)));
+    request.once("aborted", () => finish(failure(400), undefined));
+    request.once("error", () => finish(failure(400), undefined));
   });
 }

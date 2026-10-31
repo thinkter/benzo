@@ -2,7 +2,7 @@ import type { PortlessPackage, PortlessResult } from "./types.js";
 // Deliberately a literal-command recognizer, not a shell interpreter.
 export function unwrapPortless(pkg: PortlessPackage, script: string): PortlessResult | null {
   const source = pkg.scripts?.[script];
-  if (typeof source !== 'string' || !/^portless(?:\s|$)/.test(source.trim())) return null;
+  if (!pkg.scripts || typeof source !== 'string' || !/^portless(?:\s|$)/.test(source.trim())) return null;
   const unsupported = () => { throw new Error('Unsupported Portless wrapper. Select the original script with --script or use an external Benzo config; no files were changed.'); };
   if (/[\r\n]/.test(source)) unsupported();
   if (pkg.scripts[`pre${script}`] || pkg.scripts[`post${script}`]) unsupported();
@@ -27,7 +27,7 @@ export function unwrapPortless(pkg: PortlessPackage, script: string): PortlessRe
   if (words.some(word => /^(?:--(?:port|host|hostname)|-p|-H)(?:=|$)/.test(word))) unsupported();
   if (words.includes('--')) unsupported();
   return {
-    name, command,
+    ...(name ? { name } : {}), command: command as "vite" | "next",
     args: [...words, command === 'next' ? '--hostname' : '--host', '127.0.0.1', '--port', '{port}', ...(command === 'vite' ? ['--strictPort'] : [])],
   };
 }

@@ -15,3 +15,4 @@ export interface PortlessPackage { scripts?: Record<string, string>; portless?: 
 export interface PortlessResult { name?: string; command: "vite" | "next"; args: string[]; }
 export interface ManifestSource { kind: string; path?: string; }
 export interface CliOptions { name?: string; "gateway-port"?: number; authRelay?: boolean; env: Record<string, string>; json?: boolean; cwd?: string; script?: string; from?: string; config?: string; migration?: string; dryRun?: boolean; service?: string; command?: string; args: string[]; }
+export interface PublicState { instanceId: string; projectId: string; worktreeId: string; name: string; status: string; startedAt: string; urls: Record<string, string>; ports: Record<string, number>; }
