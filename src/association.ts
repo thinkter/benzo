@@ -2,11 +2,11 @@ import { realpathSync, rmSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { atomicJson, canonicalPath, hash, homeDirectory, readJson } from "./state.js";
 
-function associationPath(cwd) {
+function associationPath(cwd: string): string {
   return join(homeDirectory(), "associations", `${hash(canonicalPath(cwd))}.json`);
 }
 
-export function associatedManifest(cwd) {
+export function associatedManifest(cwd: string): string | undefined {
   let association;
   try {
     association = readJson(associationPath(cwd));
@@ -21,12 +21,12 @@ export function associatedManifest(cwd) {
 }
 
 // The CLI validates the manifest before replacing an existing association.
-export function associateManifest(cwd, filename) {
+export function associateManifest(cwd: string, filename: string): string {
   const manifest = realpathSync(resolve(cwd, filename));
   atomicJson(associationPath(cwd), { schemaVersion: 1, cwd: canonicalPath(cwd), manifest });
   return manifest;
 }
 
-export function removeAssociation(cwd) {
+export function removeAssociation(cwd: string): void {
   rmSync(associationPath(cwd), { force: true });
 }

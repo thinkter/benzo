@@ -1,5 +1,6 @@
+import type { PortlessPackage, PortlessResult } from "./types.js";
 // Deliberately a literal-command recognizer, not a shell interpreter.
-export function unwrapPortless(pkg, script) {
+export function unwrapPortless(pkg: PortlessPackage, script: string): PortlessResult | null {
   const source = pkg.scripts?.[script];
   if (typeof source !== 'string' || !/^portless(?:\s|$)/.test(source.trim())) return null;
   const unsupported = () => { throw new Error('Unsupported Portless wrapper. Select the original script with --script or use an external Benzo config; no files were changed.'); };

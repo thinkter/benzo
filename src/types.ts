@@ -1,0 +1,17 @@
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+export interface JsonObject { [key: string]: JsonValue; }
+
+export interface TlsConfig { certFile: string; keyFile: string; }
+export interface GatewayConfig { host?: string; port?: number; controlPort?: number; tls?: TlsConfig; }
+export interface WorktreeConfig { slots?: number; firstPort?: number; stride?: number; }
+export interface BackendConfig { mode?: "shared" | "external" | "none"; command?: string; args?: string[]; cwd?: string; env?: Record<string, string>; }
+export interface AuthConfig { mode?: "pass-through" | "callback" | "relay"; upstream?: string; pathPrefix?: string; callbackPath?: string; }
+export interface ReadinessConfig { type?: "http" | "tcp"; path?: string; status?: number; timeout?: number; }
+export interface ServiceConfig { name: string; command: string; args?: string[]; cwd?: string; env?: Record<string, string>; excludeEnv?: string[]; ready?: ReadinessConfig; }
+export interface Manifest { schemaVersion?: 1; name?: string; gateway?: GatewayConfig; worktree?: WorktreeConfig; backend?: BackendConfig; auth?: AuthConfig; services: ServiceConfig[]; discovery?: string; warnings?: string[]; [key: string]: JsonValue | undefined; }
+export interface NormalizedManifest extends Manifest { schemaVersion: 1; gateway: Required<Omit<GatewayConfig, "tls">> & { tls?: TlsConfig }; worktree: Required<WorktreeConfig>; backend: Required<Pick<BackendConfig, "mode">> & Omit<BackendConfig, "mode">; auth: Required<Pick<AuthConfig, "mode">> & Omit<AuthConfig, "mode">; services: ServiceConfig[]; }
+export interface PortlessPackage { scripts?: Record<string, string>; portless?: JsonValue; [key: string]: JsonValue | undefined; }
+export interface PortlessResult { name?: string; command: "vite" | "next"; args: string[]; }
+export interface ManifestSource { kind: string; path?: string; }
+export interface CliOptions { name?: string; "gateway-port"?: number; authRelay?: boolean; env: Record<string, string>; json?: boolean; cwd?: string; script?: string; from?: string; config?: string; migration?: string; dryRun?: boolean; service?: string; command?: string; args: string[]; }

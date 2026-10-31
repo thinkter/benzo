@@ -1,10 +1,11 @@
+import type { CliOptions, Manifest, ManifestSource, JsonValue } from "./types.js";
 // Provenance is an allowlisted projection: never copy configuration values here.
 export function planProvenance(
-  input,
-  source,
-  options,
-  inherited = process.env,
-) {
+  input: Manifest,
+  source: ManifestSource,
+  options: CliOptions,
+  inherited: NodeJS.ProcessEnv = process.env,
+): Record<string, JsonValue> {
   const selected = source.kind;
   const field = (object, key) =>
     Object.hasOwn(object ?? {}, key) ? selected : "default";
