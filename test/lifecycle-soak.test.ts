@@ -130,6 +130,9 @@ test(
     const env = { ...process.env, BENZO_HOME: home };
     const children: RunningChild[] = [];
     const foreign = createServer((_req, res) => res.end("unrelated listener"));
+    const occupied = createServer((_req, res) =>
+      res.end("occupied former port"),
+    );
     const probe = createServer();
     await listen(probe);
     const port = portOf(probe);
@@ -188,6 +191,20 @@ test(
       let peer: RunningChild;
       const instances = new Set<string>();
       for (let index = 0; index < cycles; index++) {
+        if (index === 1 && previousDescriptor) {
+          const previousPort = previousDescriptor.service.port;
+          await new Promise<void>((resolve, reject) => {
+            occupied.once("error", (error: NodeJS.ErrnoException) => {
+              if (error.code === "EADDRINUSE") resolve();
+              else reject(error);
+            });
+            occupied.listen(
+              previousPort,
+              "127.0.0.1",
+              resolve,
+            );
+          });
+        }
         peer = start(second);
         const current = await ready(second);
         assert.equal(instances.has(current.instanceId), false);
@@ -197,7 +214,18 @@ test(
             current.service.origin,
             previousDescriptor.service.origin,
           );
-          assert.equal(current.service.port, previousDescriptor.service.port);
+          // Named origins are stable; internal ports may move around unrelated listeners.
+          if (index === 1) {
+            assert.notEqual(
+              current.service.port,
+              previousDescriptor.service.port,
+            );
+            if (occupied.listening)
+              assert.equal(
+                (await get(portOf(occupied))).body,
+                "occupied former port",
+              );
+          }
           const stale = await get(
             port,
             `localhost:${port}`,
@@ -301,6 +329,7 @@ test(
           child.kill("SIGTERM");
         await child.done;
       }
+      await close(occupied);
       await close(foreign);
       await delay(1000);
       await rm(root, { recursive: true, force: true });
