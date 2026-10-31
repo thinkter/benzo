@@ -1,3 +1,16 @@
+import type { Page, Browser } from "@playwright/test";
+import type { ChildProcess } from "node:child_process";
+import type { JsonValue } from "#production/types";
+import type { BenchChild, BenchState, Recipe, Report } from "./types.js";
+import {
+  json,
+  object,
+  text,
+  port as tcpPort,
+  item,
+  recipesFrom,
+} from "./values.js";
+import { jsonObject, supervisorState } from "#production/wire";
 // Reproducible trials use installed package contents, unchanged upstream source,
 // real Git worktrees and real browser DNS. Raw output stays in the ignored cache.
 import assert from "node:assert/strict";
@@ -10,23 +23,23 @@ import {
   createWriteStream,
   copyFileSync,
 } from "node:fs";
-import { readFile, writeFile, rm, appendFile } from "node:fs/promises";
+import { readFile, writeFile, appendFile } from "node:fs/promises";
 import { resolve, join, delimiter, dirname } from "node:path";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "@playwright/test";
-import { launch, stop } from "../dist/process.js";
-import { loadManifest } from "../dist/config.js";
-import { harnessProvenance, refusesConnection } from "../.tools-dist/compatibility/evidence.js";
-import { stateInUrl, sokosumi } from "./consumers.mjs";
+import { launch, stop } from "#production/process";
+import { loadManifest } from "#production/config";
+import { harnessProvenance, refusesConnection } from "./evidence.js";
+import { stateInUrl, sokosumi } from "./consumers.js";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const cache = join(root, ".compat");
 mkdirSync(cache, { recursive: true });
 const reports = join(root, "compatibility/reports");
 mkdirSync(reports, { recursive: true });
-const recipes = JSON.parse(
+const recipes = recipesFrom(
   readFileSync(join(root, "compatibility/recipes/projects.json"), "utf8"),
 );
 const strict = process.argv.includes("--require-pass");
@@ -42,12 +55,10 @@ const env = {
   PATH: [
     join(cache, "consumer-tools/node_modules/.bin"),
     join(cache, "tools/node_modules/.bin"),
-    process.env.PATH,
+    process.env["PATH"],
   ].join(delimiter),
 };
-let installedCli;
-let build;
-const activeChildren = new Set();
+const activeChildren = new Set<ChildProcess>();
 const cancellation = new AbortController();
 for (const signal of ["SIGINT", "SIGTERM"])
   process.once(signal, async () => {
@@ -55,12 +66,17 @@ for (const signal of ["SIGINT", "SIGTERM"])
     process.exitCode = signal === "SIGINT" ? 130 : 143;
     await Promise.all([...activeChildren].map((child) => stop(child)));
   });
-function track(child) {
+function track<T extends ChildProcess>(child: T): T {
   activeChildren.add(child);
   child.once("close", () => activeChildren.delete(child));
   return child;
 }
-async function run(command, args, cwd = process.cwd(), timeout = 600000) {
+async function run(
+  command: string,
+  args: string[],
+  cwd = process.cwd(),
+  timeout = 600000,
+) {
   const child = track(launch(command, args, cwd, env));
   let output = "";
   const log = createWriteStream(join(cache, "commands.log"), {
@@ -68,14 +84,14 @@ async function run(command, args, cwd = process.cwd(), timeout = 600000) {
     mode: 0o600,
   });
   for (const pipe of [child.stdout, child.stderr])
-    pipe.on("data", (data) => {
+    pipe?.on("data", (data: Buffer) => {
       output = `${output}${data}`.slice(-65536);
       log.write(data);
     });
-  let timer;
+  let timer: NodeJS.Timeout | undefined;
   let timedOut = false;
   try {
-    await new Promise((accept, reject) => {
+    await new Promise<void>((accept, reject) => {
       timer = setTimeout(() => {
         timedOut = true;
         void stop(child).then(
@@ -99,15 +115,22 @@ async function run(command, args, cwd = process.cwd(), timeout = 600000) {
     log.end();
   }
 }
-function background(command, args, cwd, additions = {}) {
-  const child = track(launch(command, args, cwd, { ...env, ...additions }));
-  child.output = "";
+function background(
+  command: string,
+  args: string[],
+  cwd: string,
+  additions: NodeJS.ProcessEnv = {},
+): BenchChild {
+  const child: BenchChild = Object.assign(
+    track(launch(command, args, cwd, { ...env, ...additions })),
+    { output: "" },
+  );
   const log = createWriteStream(join(cache, "services.log"), {
     flags: "a",
     mode: 0o600,
   });
   for (const pipe of [child.stdout, child.stderr])
-    pipe.on("data", (data) => {
+    pipe?.on("data", (data: Buffer) => {
       child.output = `${child.output}${data}`.slice(-8192);
       log.write(data);
     });
@@ -117,17 +140,19 @@ function background(command, args, cwd, additions = {}) {
   });
   return child;
 }
-async function waitFor(check, timeout = 120000) {
+async function waitFor<T>(check: () => T | Promise<T>, timeout = 120000) {
   const deadline = Date.now() + timeout;
-  let last;
+  let last: Error | undefined;
   while (Date.now() < deadline) {
     cancellation.signal.throwIfAborted();
     try {
       const value = await check();
       if (value) return value;
     } catch (error) {
-      if (error.fatal) throw error;
-      last = error;
+      if (error instanceof Error && "fatal" in error && error.fatal)
+        throw error;
+      last =
+        error instanceof Error ? error : new Error("Readiness check failed.");
     }
     await delay(150);
   }
@@ -135,12 +160,14 @@ async function waitFor(check, timeout = 120000) {
 }
 async function freePort() {
   const server = createServer();
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const port = server.address().port;
-  await new Promise((resolve) => server.close(resolve));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const port = address.port;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
   return port;
 }
-async function auditRejectedBare(checkout, report) {
+async function auditRejectedBare(checkout: string, report: Report) {
   report.bare = { argv: [], cwd: "repository-root", result: "running" };
   const child = background(
     join(cache, "install/node_modules/.bin/benzo"),
@@ -175,7 +202,9 @@ async function auditRejectedBare(checkout, report) {
 async function packageBuild() {
   await run("pnpm", ["pack", "--pack-destination", cache]);
   const tarball = join(cache, "benzo-0.1.0.tgz");
-  build = createHash("sha256").update(readFileSync(tarball)).digest("hex");
+  const build = createHash("sha256")
+    .update(readFileSync(tarball))
+    .digest("hex");
   const immutableTarball = join(cache, `benzo-${build}.tgz`);
   copyFileSync(tarball, immutableTarball);
   await run("npm", [
@@ -192,7 +221,7 @@ async function packageBuild() {
     ),
     readFileSync(join(root, "dist/runtime.js"), "utf8"),
   );
-  installedCli = join(cache, "install/node_modules/benzo/dist/cli.js");
+  const installedCli = join(cache, "install/node_modules/benzo/dist/cli.js");
   assert.match(
     await run(process.execPath, [installedCli, "--version"]),
     /0\.1\.0/,
@@ -213,19 +242,20 @@ async function packageBuild() {
     ),
     /function function/,
   );
+  return { installedCli, build };
 }
-async function getState(cwd) {
-  const value = JSON.parse(
-    await run(
-      process.execPath,
-      [installedCli, "status", "--json", "--cwd", cwd],
-      root,
-      5000,
-    ),
+async function getState(cwd: string): Promise<BenchState | undefined> {
+  const stdout = await run(
+    process.execPath,
+    [installedCli, "status", "--json", "--cwd", cwd],
+    root,
+    5000,
   );
-  return value.status === "ready" ? value : undefined;
+  return jsonObject(stdout)["status"] === "ready"
+    ? supervisorState(stdout)
+    : undefined;
 }
-async function journey(page, url) {
+async function journey(page: Page, url: string) {
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 90000 });
   await page
     .locator("canvas.excalidraw__canvas")
@@ -239,9 +269,10 @@ async function journey(page, url) {
   await page.waitForFunction(
     () => {
       try {
-        return (
-          JSON.parse(localStorage.getItem("excalidraw") ?? "[]").length > 0
+        const stored: JsonValue = JSON.parse(
+          localStorage.getItem("excalidraw") ?? "[]",
         );
+        return Array.isArray(stored) && stored.length > 0;
       } catch {
         return false;
       }
@@ -250,7 +281,7 @@ async function journey(page, url) {
     { timeout: 15000 },
   );
 }
-async function excalidraw(recipe, checkout, report) {
+async function excalidraw(recipe: Recipe, checkout: string, report: Report) {
   if (!existsSync(join(cache, "tools/node_modules/.bin/yarn")))
     await run("npm", [
       "install",
@@ -266,12 +297,12 @@ async function excalidraw(recipe, checkout, report) {
     checkout,
   );
   const baselinePort = await freePort();
-  let baseline;
-  let browser;
-  const children = [];
-  const worktrees = [];
+  let baseline: BenchChild | undefined;
+  let browser: Browser | undefined;
+  const children: BenchChild[] = [];
+  const worktrees: string[] = [];
   const listenerPorts = [baselinePort];
-  const gatewayPorts = new Set();
+  const gatewayPorts = new Set<number>();
   try {
     browser = await chromium.launch({ headless: true });
     const baselineContext = await browser.newContext();
@@ -303,7 +334,7 @@ async function excalidraw(recipe, checkout, report) {
     // gateway flags below must never be reported as proof that bare Benzo works.
     report.bare = { argv: [], cwd: "repository-root", result: "running" };
     const bareContext = await browser.newContext();
-    let bare;
+    let bare: BenchChild | undefined;
     try {
       bare = background(
         join(cache, "install/node_modules/.bin/benzo"),
@@ -311,7 +342,7 @@ async function excalidraw(recipe, checkout, report) {
         checkout,
       );
       const state = await waitFor(async () => {
-        if (bare.startupError || bare.exitCode !== null)
+        if (!bare || bare.startupError || bare.exitCode !== null)
           throw Object.assign(
             new Error(
               "Bare Benzo exited before readiness; inspect private service logs.",
@@ -320,10 +351,10 @@ async function excalidraw(recipe, checkout, report) {
           );
         return getState(checkout);
       }, 45000);
-      listenerPorts.push(...Object.values(state.ports), 2999);
+      listenerPorts.push(...Object.values(state.ports).map(tcpPort), 2999);
       gatewayPorts.add(3000);
-      assert.equal(new URL(state.urls.web).port, "3000");
-      await journey(await bareContext.newPage(), state.urls.web);
+      assert.equal(new URL(text(state.urls["web"])).port, "3000");
+      await journey(await bareContext.newPage(), text(state.urls["web"]));
       report.bare.result = "passed";
       report.scenarios.push({
         case: "bare-root-browser-drawing",
@@ -331,7 +362,9 @@ async function excalidraw(recipe, checkout, report) {
       });
     } catch (error) {
       report.bare.result = "failed";
-      report.bare.reason = error.message.replaceAll(cache, "<cache>");
+      report.bare.reason = (
+        error instanceof Error ? error.message : "Compatibility command failed."
+      ).replaceAll(cache, "<cache>");
     } finally {
       await bareContext.close();
       if (bare) {
@@ -359,7 +392,7 @@ async function excalidraw(recipe, checkout, report) {
       worktrees.push(cwd);
     }
     const gatewayPort = await freePort();
-    const states = [];
+    const states: BenchState[] = [];
     console.log("Excalidraw: two real worktrees through installed Benzo");
     for (const cwd of worktrees) {
       children.push(
@@ -378,14 +411,17 @@ async function excalidraw(recipe, checkout, report) {
       );
       states.push(await waitFor(() => getState(cwd)));
       listenerPorts.push(
-        ...Object.values(states.at(-1).ports),
+        ...Object.values(item(states, states.length - 1).ports).map(tcpPort),
         gatewayPort - 1,
       );
       gatewayPorts.add(gatewayPort);
     }
-    assert.equal(states[0].name, "feature");
-    assert.equal(states[1].name, "feature-2");
-    assert.notEqual(states[0].ports.web, states[1].ports.web);
+    assert.equal(item(states, 0).name, "feature");
+    assert.equal(item(states, 1).name, "feature-2");
+    assert.notEqual(
+      tcpPort(item(states, 0).ports["web"]),
+      tcpPort(item(states, 1).ports["web"]),
+    );
     const context = await browser.newContext();
     const one = await context.newPage();
     const two = await context.newPage();
@@ -393,17 +429,18 @@ async function excalidraw(recipe, checkout, report) {
     one.on("websocket", (socket) => {
       socket.on("framereceived", (frame) => {
         try {
-          if (JSON.parse(frame.payload).type === "connected") connected = true;
+          if (object(json(frame.payload.toString()))["type"] === "connected")
+            connected = true;
         } catch {}
       });
     });
-    await journey(one, states[0].urls.web);
-    await journey(two, states[1].urls.web);
+    await journey(one, text(item(states, 0).urls["web"]));
+    await journey(two, text(item(states, 1).urls["web"]));
     report.scenarios.push(
       { case: "two-worktrees-browser-drawing", result: "passed" },
       { case: "active-name-collision", result: "passed" },
     );
-    const stimulus = join(worktrees[0], recipe.hmrFile);
+    const stimulus = join(item(worktrees, 0), text(recipe.hmrFile));
     const original = await readFile(stimulus, "utf8");
     try {
       await writeFile(
@@ -434,7 +471,12 @@ async function excalidraw(recipe, checkout, report) {
     } finally {
       await writeFile(stimulus, original);
     }
-    await run(process.execPath, [installedCli, "stop", "--cwd", worktrees[0]]);
+    await run(process.execPath, [
+      installedCli,
+      "stop",
+      "--cwd",
+      item(worktrees, 0),
+    ]);
     await two.reload();
     await two.locator("canvas.excalidraw__canvas").first().waitFor();
     report.scenarios.push({
@@ -476,7 +518,7 @@ async function excalidraw(recipe, checkout, report) {
     report.listenerCleanup = "passed";
   }
 }
-await packageBuild();
+const { installedCli, build } = await packageBuild();
 if (selected.some((name) => !recipes.some((recipe) => recipe.name === name)))
   throw new Error(
     "Unknown compatibility recipe. Select a name from compatibility/recipes/projects.json.",
@@ -486,7 +528,7 @@ for (const recipe of recipes.filter(
   (recipe) => !selected.length || selected.includes(recipe.name),
 )) {
   if (cancellation.signal.aborted) break;
-  const report = {
+  const report: Report = {
     project: recipe.name,
     repository: recipe.repository,
     commit: recipe.commit,
@@ -510,7 +552,7 @@ for (const recipe of recipes.filter(
     reproduction: `pnpm test:compat ${recipe.name}`,
   };
   Object.defineProperty(report, "onFailure", {
-    value: (name, error) =>
+    value: (name: string, error: Error) =>
       appendFile(join(cache, "assertions.log"), `${name}\n${error.stack}\n`, {
         mode: 0o600,
       }),
@@ -522,7 +564,7 @@ for (const recipe of recipes.filter(
         `${JSON.stringify(report, null, 2)}\n`,
       ),
   });
-  await report.onScenario();
+  await report.onScenario?.();
   try {
     const checkout = join(cache, recipe.name);
     if (!existsSync(join(checkout, ".git"))) {
@@ -556,14 +598,15 @@ for (const recipe of recipes.filter(
       report.discovery = "passed";
     } catch (error) {
       report.discovery = "unsupported";
-      report.discoveryDiagnostic = error.message;
+      report.discoveryDiagnostic =
+        error instanceof Error ? error.message : "Discovery failed.";
     }
     if (
       report.discovery === "unsupported" &&
-      /script starts an orchestrator/.test(report.discoveryDiagnostic)
+      /script starts an orchestrator/.test(report.discoveryDiagnostic ?? "")
     )
       await auditRejectedBare(checkout, report);
-    await report.onScenario();
+    await report.onScenario?.();
     for (const tool of recipe.requiredTools) {
       try {
         await run(tool, ["version"], root, 10000);
@@ -601,7 +644,9 @@ for (const recipe of recipes.filter(
   } catch (error) {
     failed = true;
     report.result = report.baseline === "passed" ? "failed" : "blocked";
-    report.reason = error.message.replaceAll(cache, "<cache>");
+    report.reason = (
+      error instanceof Error ? error.message : "Compatibility command failed."
+    ).replaceAll(cache, "<cache>");
   }
   if (report.bare?.result === "failed" && report.result === "passed") {
     report.result = "failed";

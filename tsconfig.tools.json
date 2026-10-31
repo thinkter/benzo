@@ -3,12 +3,8 @@
   "compilerOptions": {
     "rootDir": ".",
     "outDir": ".tools-dist",
-    "declaration": false,
+    "declaration": true,
     "declarationMap": false
   },
-  "include": [
-    "scripts/**/*.ts",
-    "compatibility/acceptance.ts",
-    "compatibility/evidence.ts"
-  ]
+  "include": ["scripts/**/*.ts", "compatibility/*.ts"]
 }

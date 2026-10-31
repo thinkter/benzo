@@ -5,23 +5,13 @@
     "outDir": ".test-dist",
     "declaration": false,
     "declarationMap": false,
-    "types": ["node", "bun"]
+    "types": [
+      "node",
+      "bun"
+    ]
   },
   "include": [
-    "test/streaming.test.ts",
-    "test/better-auth.test.ts",
-    "test/test-watch.test.ts",
-    "test/portless-plan.test.ts",
-    "test/tls.test.ts",
-    "test/lifecycle-soak.test.ts",
-    "test/browser/tls.test.ts",
-    "test/browser/form-post.test.ts",
-    "test/cleanup.test.ts",
-    "test/browser/auth.test.ts",
-    "test/browser/frameworks.test.ts",
-    "test/auth.test.ts",
-    "test/core.test.ts",
-    "test/runtime.test.ts",
-    "compatibility/lab/clients.test.ts"
+    "test/**/*.ts",
+    "compatibility/lab/**/*.ts"
   ]
 }

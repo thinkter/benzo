@@ -1,4 +1,5 @@
-export type ScenarioResult = "running" | "passed" | "failed" | "blocked";
+export type ScenarioResult =
+  "running" | "passed" | "failed" | "blocked" | "not-run";
 export interface ScenarioEntry {
   case: string;
   result: ScenarioResult;
@@ -10,7 +11,7 @@ export interface ScenarioEntry {
 export interface AcceptanceReport {
   scenarios: ScenarioEntry[];
   onFailure?: (name: string, error: Error) => Promise<void>;
-  onScenario?: () => Promise<void>;
+  onScenario?: () => void | Promise<void>;
 }
 export type ScenarioAction = (entry: ScenarioEntry) => Promise<void>;
 

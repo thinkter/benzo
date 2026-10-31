@@ -1,3 +1,6 @@
+import type { Page } from "@playwright/test";
+import type { Harness, Report, BenchChild, BenchState } from "./types.js";
+import { json, object, text, port as tcpPort, item } from "./values.js";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
@@ -5,12 +8,12 @@ import { join, delimiter } from "node:path";
 import { request } from "node:http";
 import { createServer } from "node:net";
 import { chromium, expect } from "@playwright/test";
-import { stop } from "../dist/process.js";
+import { stop } from "#production/process";
 import {
   scenario,
   replacementVerdict,
   configuredVerdict,
-} from "../.tools-dist/compatibility/acceptance.js";
+} from "./acceptance.js";
 
 const examples = [
   "react",
@@ -22,8 +25,8 @@ const examples = [
   "nextjs15",
   "nextjs16",
 ];
-function reachable(port, host = "localhost", path = "/") {
-  return new Promise((resolve, reject) => {
+function reachable(port: number, host = "localhost", path = "/") {
+  return new Promise<boolean>((resolve, reject) => {
     const req = request(
       { hostname: "localhost", port, path, headers: { host }, timeout: 120000 },
       (res) => {
@@ -38,10 +41,10 @@ function reachable(port, host = "localhost", path = "/") {
     req.end();
   });
 }
-async function portsReleased(ports) {
+async function portsReleased(ports: number[]) {
   for (const port of ports) {
     const server = createServer();
-    const free = await new Promise((resolve) => {
+    const free = await new Promise<boolean>((resolve) => {
       server.once("error", () => resolve(false));
       server.listen(port, "127.0.0.1", () => server.close(() => resolve(true)));
     });
@@ -49,7 +52,7 @@ async function portsReleased(ports) {
   }
   return true;
 }
-function assertRunning(child) {
+function assertRunning(child: BenchChild) {
   if (child.startupError || child.exitCode !== null || child.signalCode)
     throw Object.assign(
       new Error(
@@ -61,7 +64,12 @@ function assertRunning(child) {
 
 // Adapted from upstream tests/useUrlState/{main,history}.spec.ts. The app stays
 // unchanged; the same assertions run at baseline, Portless and Benzo origins.
-async function journey(page, origin, app, marker = "Benzo consumer") {
+async function journey(
+  page: Page,
+  origin: string,
+  app: string,
+  marker = "Benzo consumer",
+) {
   const route = app.startsWith("nextjs") ? "/test-use-client" : "/";
   await page.goto(`${origin}${route}?replace=false`, {
     waitUntil: "domcontentloaded",
@@ -79,7 +87,9 @@ async function journey(page, origin, app, marker = "Benzo consumer") {
   await name.fill(marker);
   const parsed = page.getByTestId("parsed");
   await expect
-    .poll(async () => JSON.parse(await parsed.textContent()).name)
+    .poll(
+      async () => object(json((await parsed.textContent()) ?? "null"))["name"],
+    )
     .toBe(marker);
   if (app !== "react") {
     await expect
@@ -103,7 +113,7 @@ async function journey(page, origin, app, marker = "Benzo consumer") {
   }
 }
 
-export async function stateInUrl(h) {
+export async function stateInUrl(h: Harness) {
   const {
     checkout,
     cache,
@@ -127,7 +137,7 @@ export async function stateInUrl(h) {
       "--ignore-scripts",
     ]);
   const launchEnv = {
-    PATH: [join(cache, "consumer-tools/node_modules/.bin"), h.env.PATH].join(
+    PATH: [join(cache, "consumer-tools/node_modules/.bin"), h.env["PATH"]].join(
       delimiter,
     ),
     npm_config_manage_package_manager_versions: "false",
@@ -145,7 +155,7 @@ export async function stateInUrl(h) {
     environmentOverrides: [],
     upstreamShellScriptsPortable: false,
   };
-  const worktrees = [];
+  const worktrees: string[] = [];
   for (const label of ["a", "b"]) {
     h.signal?.throwIfAborted();
     const cwd = join(cache, "worktrees", `state-in-url-${label}`, "feature");
@@ -169,7 +179,7 @@ export async function stateInUrl(h) {
   };
   h.signal?.addEventListener("abort", abortBrowser, { once: true });
   report.browser = { name: "chromium", version: browser.version() };
-  const selected = process.env.BENZO_COMPAT_APPS?.split(",") ?? examples;
+  const selected = process.env["BENZO_COMPAT_APPS"]?.split(",") ?? examples;
   assert.ok(
     selected.every((app) => examples.includes(app)),
     "Unknown BENZO_COMPAT_APPS example",
@@ -192,7 +202,7 @@ export async function stateInUrl(h) {
         ...launchEnv,
         PORT: String(baselinePort),
       });
-      let baseline;
+      let baseline: boolean;
       try {
         baseline = await scenario(
           report,
@@ -234,15 +244,17 @@ export async function stateInUrl(h) {
       report.baseline = "passed";
       // Portless's actual version is pinned by the upstream lockfile. Isolate its
       // state and disable HTTPS exactly as this consumer's wrapper does.
-      const portlessPackage = JSON.parse(
-        await readFile(
-          join(checkout, "node_modules/portless/package.json"),
-          "utf8",
+      const portlessPackage = object(
+        json(
+          await readFile(
+            join(checkout, "node_modules/portless/package.json"),
+            "utf8",
+          ),
         ),
       );
       report.competitor = {
         name: "portless",
-        version: portlessPackage.version,
+        version: text(portlessPackage["version"]),
       };
       const portlessPort = await freePort();
       const portlessHome = join(cache, `portless-${app}`);
@@ -255,9 +267,9 @@ export async function stateInUrl(h) {
       const portlessCli = join(
         checkout,
         "node_modules/portless",
-        typeof portlessPackage.bin === "string"
-          ? portlessPackage.bin
-          : portlessPackage.bin.portless,
+        typeof portlessPackage["bin"] === "string"
+          ? portlessPackage["bin"]
+          : text(object(portlessPackage["bin"])["portless"]),
       );
       const competitor = background(
         process.execPath,
@@ -277,7 +289,7 @@ export async function stateInUrl(h) {
         portlessEnv,
       );
       const origin = `http://example-${app}.localhost:${portlessPort}`;
-      let competitorPassed;
+      let competitorPassed: boolean;
       try {
         competitorPassed = await scenario(
           report,
@@ -309,14 +321,14 @@ export async function stateInUrl(h) {
           cwd,
           portlessEnv,
         );
-        await new Promise((accept) => {
-          proxyStop.once("close", accept);
-          proxyStop.once("error", accept);
+        await new Promise<void>((accept) => {
+          proxyStop.once("close", () => accept());
+          proxyStop.once("error", () => accept());
         });
         await stop(proxyStop);
       }
-      const children = [];
-      const states = [];
+      const children: BenchChild[] = [];
+      const states: BenchState[] = [];
       const serviceCwds = worktrees.map((tree) => join(tree, folder));
       const gatewayPort = portlessPort; // exact scheme, hostname and port parity
       const testCase = `${app}:consumer-parity`;
@@ -347,21 +359,24 @@ export async function stateInUrl(h) {
             for (const [index, tree] of serviceCwds.entries())
               states.push(
                 await waitFor(() => {
-                  assertRunning(children[index]);
+                  assertRunning(item(children, index));
                   return getState(tree);
                 }),
               );
-            assert.notEqual(states[0].ports.web, states[1].ports.web);
+            assert.notEqual(
+              tcpPort(item(states, 0).ports["web"]),
+              tcpPort(item(states, 1).ports["web"]),
+            );
             assert.deepEqual(
               new Set(states.map((s) => s.name)),
               new Set([`example-${app}`, `example-${app}-2`]),
             );
             assert.ok(
-              states.some((s) => s.urls.web === origin),
+              states.some((s) => text(s.urls["web"]) === origin),
               "Original complete origin must be preserved",
             );
-            entry.originPreserved = true;
-            entry.comparedWithPortless = competitorPassed;
+            entry["originPreserved"] = true;
+            entry["comparedWithPortless"] = competitorPassed;
             const context = await browser.newContext();
             try {
               const pages = await Promise.all([
@@ -369,30 +384,38 @@ export async function stateInUrl(h) {
                 context.newPage(),
               ]);
               for (const [i, page] of pages.entries())
-                await journey(page, states[i].urls.web, app, `Worktree ${i}`);
+                await journey(
+                  page,
+                  text(item(states, i).urls["web"]),
+                  app,
+                  `Worktree ${i}`,
+                );
               if (app === "react") {
-                const file = join(worktrees[0], "packages/shared/styles.css");
+                const file = join(
+                  item(worktrees, 0),
+                  "packages/shared/styles.css",
+                );
                 const source = await readFile(file, "utf8");
                 try {
                   await writeFile(
                     file,
                     `${source}\n:root { --benzo-consumer-hmr: worktree-a; }\n`,
                   );
-                  await pages[0].waitForFunction(
+                  await item(pages, 0).waitForFunction(
                     () =>
                       getComputedStyle(document.documentElement)
                         .getPropertyValue("--benzo-consumer-hmr")
                         .trim() === "worktree-a",
                   );
                   assert.equal(
-                    await pages[1].evaluate(() =>
+                    await item(pages, 1).evaluate(() =>
                       getComputedStyle(document.documentElement)
                         .getPropertyValue("--benzo-consumer-hmr")
                         .trim(),
                     ),
                     "",
                   );
-                  entry.hmrIsolation = "passed";
+                  entry["hmrIsolation"] = "passed";
                 } finally {
                   await writeFile(file, source);
                 }
@@ -401,15 +424,15 @@ export async function stateInUrl(h) {
                 installedCli,
                 "stop",
                 "--cwd",
-                serviceCwds[0],
+                item(serviceCwds, 0),
               ]);
               await journey(
-                pages[1],
-                states[1].urls.web,
+                item(pages, 1),
+                text(item(states, 1).urls["web"]),
                 app,
                 "Surviving peer",
               );
-              entry.stopPreservesPeer = true;
+              entry["stopPreservesPeer"] = true;
             } finally {
               await context.close();
             }
@@ -427,8 +450,8 @@ export async function stateInUrl(h) {
         await Promise.all(children.map((child) => stop(child)));
         await waitFor(
           async () =>
-            !(await getState(serviceCwds[0])) &&
-            !(await getState(serviceCwds[1])),
+            !(await getState(item(serviceCwds, 0))) &&
+            !(await getState(item(serviceCwds, 1))),
           10000,
         );
         if (states.length !== 2)
@@ -444,7 +467,7 @@ export async function stateInUrl(h) {
               () =>
                 portsReleased([
                   gatewayPort,
-                  ...states.map((state) => state.ports.web),
+                  ...states.map((state) => tcpPort(state.ports["web"])),
                 ]),
               15000,
             );
@@ -466,7 +489,7 @@ export async function stateInUrl(h) {
   report.sourceUnchanged = true;
   report.applicationChangesRequired = false;
   report.baseline = report.scenarios.some(
-    (s) => s.lane === "original-command" && s.result === "passed",
+    (s) => s["lane"] === "original-command" && s.result === "passed",
   )
     ? "passed"
     : "failed";
@@ -505,7 +528,7 @@ export async function stateInUrl(h) {
   if (report.result === "failed") process.exitCode = 1;
 }
 
-export async function sokosumi({ report }) {
+export async function sokosumi({ report }: { report: Report }) {
   report.result = "blocked";
   report.reason =
     "No isolated PostgreSQL/auth baseline established; trusted browser HTTPS on port 443 has not been validated for this consumer. Benzo supports user-supplied TLS certificates.";
