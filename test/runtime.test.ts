@@ -145,10 +145,29 @@ function startArgs(home: string, args: string[]) {
   });
   return child;
 }
+function statusSnapshot(stdout: string) {
+  const raw = jsonObject(stdout);
+  return raw["status"] === "ready"
+    ? { ...supervisorState(stdout), raw }
+    : undefined;
+}
+function assertSecretFree(raw: JsonObject, secrets: readonly string[]): void {
+  assert.equal(
+    Object.hasOwn(raw, "token"),
+    false,
+    "Status exposes a token field",
+  );
+  const serialized = JSON.stringify(raw);
+  for (const secret of secrets)
+    assert.equal(
+      serialized.includes(secret),
+      false,
+      "Status exposes a secret value",
+    );
+}
 async function state(cwd: string, home: string) {
   const { stdout } = await call(cwd, home, "status", "--json");
-  const parsed = jsonObject(stdout);
-  return parsed["status"] === "ready" ? supervisorState(stdout) : undefined;
+  return statusSnapshot(stdout);
 }
 function request(port: number, host: string, path = "/") {
   return new Promise<{
@@ -969,7 +988,7 @@ test(
         origin: text(running.urls["web"]),
         value: "launch=only",
       });
-      assert.ok(!JSON.stringify(running).includes("launch=only"));
+      assertSecretFree(running.raw, ["launch=only"]);
       await assert.rejects(
         call(f.cwd, f.home, "doctor", "--env", "MISSING_EQUALS"),
         /KEY=value/,
@@ -989,8 +1008,7 @@ test(
     try {
       const running = await waitFor(() => state(f.cwd, f.home));
       assert.ok(child.output.includes("Ready."));
-      assert.equal(JSON.stringify(running).includes("benzo-test-only"), false);
-      assert.equal("token" in running, false);
+      assertSecretFree(running.raw, ["benzo-test-only"]);
       const response = await request(
         f.port,
         new URL(text(running.urls["web"])).host,
@@ -1752,5 +1770,44 @@ test("supervisor rejects malformed wire state but accepts stop acknowledgments",
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test("status secrecy checks inspect unfiltered CLI fields after decoding", () => {
+  const valid = {
+    protocol: "benzo/1",
+    slot: 0,
+    ports: { web: 10001 },
+    urls: { web: "http://feature.localhost:3000" },
+    logs: {},
+    controlPort: 2999,
+    gateway: 3000,
+    instanceId: "instance",
+    projectId: "project",
+    worktreeId: "worktree",
+    name: "feature",
+    status: "ready",
+    startedAt: new Date().toISOString(),
+  };
+  const clean = statusSnapshot(JSON.stringify(valid));
+  assert.ok(clean);
+  assertSecretFree(clean.raw, ["benzo-test-only", "launch=only"]);
+  for (const leak of [
+    { token: "capability" },
+    { environment: { BETTER_AUTH_SECRET: "benzo-test-only" } },
+    { extension: { CUSTOM_VALUE: "launch=only" } },
+  ]) {
+    const stdout = JSON.stringify({ ...valid, ...leak });
+    // The decoder intentionally strips extensions, so checking it alone misses leaks.
+    assert.deepEqual(
+      supervisorState(stdout),
+      supervisorState(JSON.stringify(valid)),
+    );
+    const snapshot = statusSnapshot(stdout);
+    assert.ok(snapshot);
+    assert.throws(
+      () => assertSecretFree(snapshot.raw, ["benzo-test-only", "launch=only"]),
+      /Status exposes/,
+    );
   }
 });
