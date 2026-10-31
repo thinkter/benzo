@@ -1,3 +1,4 @@
+import { jsonObject } from "./wire.js";
 import type { JsonObject, JsonValue } from "./types.js";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -56,7 +57,7 @@ export function projectIdentity(cwd: string): string {
 }
 export function readJson(path: string): JsonObject | undefined {
   try {
-    return JSON.parse(readFileSync(path, "utf8")) as JsonObject;
+    return jsonObject(readFileSync(path, "utf8"));
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT")
       return undefined;

@@ -825,3 +825,59 @@ test("private gateway launch validates serialized TLS without dropping options",
     assert.throws(() => gatewayLaunch(JSON.stringify(bad)));
   }
 });
+
+test("discovery validates package fields at root, ancestor and delegated package boundaries", async () => {
+  const root = await mkdtemp(join(tmpdir(), "benzo-package-decode-"));
+  const nested = join(root, "app");
+  await mkdir(nested);
+  const write = (cwd: string, value: JsonValue) =>
+    writeFile(join(cwd, "package.json"), JSON.stringify(value));
+  try {
+    for (const value of [
+      null,
+      [],
+      42,
+      { scripts: { dev: "vite" }, packageManager: 123 },
+      { scripts: { dev: [] } },
+      { scripts: [] },
+      { benzo: [] },
+    ]) {
+      await write(root, value);
+      assert.throws(
+        () => discoverManifest(root),
+        /Expected a JSON object|Invalid package.json field|Invalid Benzo config/,
+      );
+    }
+    await write(root, { packageManager: 123 });
+    await write(nested, { scripts: { dev: "vite" } });
+    assert.throws(
+      () => discoverManifest(nested),
+      /Invalid package.json field packageManager/,
+    );
+    await write(root, { scripts: { dev: "pnpm --cwd app dev" } });
+    await write(nested, { scripts: { dev: 123 } });
+    assert.throws(
+      () => discoverManifest(root),
+      /Invalid package.json field scripts/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("state JSON rejects non-object roots while preserving missing-file semantics", async () => {
+  const { readJson } = await import("#production/state");
+  const root = await mkdtemp(join(tmpdir(), "benzo-state-decode-"));
+  const path = join(root, "state.json");
+  try {
+    assert.equal(readJson(path), undefined);
+    for (const value of [null, [], 42, "text", true]) {
+      await writeFile(path, JSON.stringify(value));
+      assert.throws(() => readJson(path), /Invalid Benzo state/);
+    }
+    await writeFile(path, '{"nested":{"enabled":true}}');
+    assert.deepEqual(readJson(path), { nested: { enabled: true } });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

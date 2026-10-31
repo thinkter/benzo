@@ -5,6 +5,7 @@ import type {
 } from "./types.js";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { jsonObject } from "./wire.js";
 import { unwrapPortless } from "./portless.js";
 import { associatedManifest } from "./association.js";
 import { validateManifestShape } from "./manifest.js";
@@ -140,6 +141,38 @@ export function framework(
   if (/(?:^|\s)remix\s+vite:dev(?:\s|$)/.test(script)) return "remix";
   return undefined;
 }
+function readPackage(path: string): PackageJson {
+  const value = jsonObject(readFileSync(path, "utf8"));
+  const result: PackageJson = {};
+  const fail = (field: string): never => {
+    throw new Error(`Invalid package.json field ${field} at ${path}.`);
+  };
+  if (value["packageManager"] !== undefined) {
+    if (typeof value["packageManager"] !== "string") fail("packageManager");
+    else result.packageManager = value["packageManager"];
+  }
+  const scripts = value["scripts"];
+  if (scripts !== undefined) {
+    if (
+      scripts === null ||
+      typeof scripts !== "object" ||
+      Array.isArray(scripts)
+    )
+      return fail("scripts");
+    const entries: [string, string][] = [];
+    for (const [key, entry] of Object.entries(scripts)) {
+      if (typeof entry !== "string") return fail("scripts");
+      entries.push([key, entry]);
+    }
+    result.scripts = Object.fromEntries(entries);
+  }
+  if (value["benzo"] !== undefined) {
+    validateManifestShape(value["benzo"]);
+    result.benzo = value["benzo"] as ManifestInput;
+  }
+  if (value["portless"] !== undefined) result.portless = value["portless"];
+  return result;
+}
 function packageManager(root: string, pkg: PackageJson): string {
   if (pkg.packageManager) return pkg.packageManager.split("@")[0] ?? "npm";
   for (let directory = resolve(root); ;) {
@@ -155,7 +188,7 @@ function packageManager(root: string, pkg: PackageJson): string {
     if (parent === directory) break;
     const path = join(parent, "package.json");
     if (existsSync(path)) {
-      const ancestor = JSON.parse(readFileSync(path, "utf8")) as PackageJson;
+      const ancestor = readPackage(path);
       if (ancestor.packageManager)
         return ancestor.packageManager.split("@")[0] ?? "npm";
     }
@@ -187,9 +220,7 @@ function nestedFramework(
     if (existsSync(path))
       return nestedFramework(
         directory,
-        (JSON.parse(readFileSync(path, "utf8")) as PackageJson).scripts?.[
-          match[2] ?? ""
-        ],
+        readPackage(path).scripts?.[match[2] ?? ""],
         depth + 1,
       );
   }
@@ -213,7 +244,7 @@ function discoverInput(
     throw new Error(
       "No package.json or Benzo config found. Run benzo dev -- <your-server> [args], or use --config <file>.",
     );
-  const pkg = JSON.parse(readFileSync(path, "utf8")) as PackageJson;
+  const pkg = readPackage(path);
   if (pkg.benzo) return pkg.benzo;
   script ??= pkg.scripts?.["dev"] ? "dev" : "start";
   if (!script) throw new Error("No dev or start script found.");
