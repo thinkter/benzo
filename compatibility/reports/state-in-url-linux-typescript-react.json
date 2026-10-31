@@ -369,7 +369,7 @@
   "schemaVersion": 2,
   "replacement": "not-established",
   "execution": "completed",
-  "reproduction": "pnpm test:compat state-in-url",
+  "reproduction": "BENZO_COMPAT_APPS=react pnpm test:compat state-in-url",
   "discovery": "unsupported",
   "discoveryDiagnostic": "The dev script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application.",
   "packageManager": "pnpm@10.26.0",

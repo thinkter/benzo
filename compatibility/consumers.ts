@@ -184,6 +184,7 @@ export async function stateInUrl(h: Harness) {
     selected.every((app) => examples.includes(app)),
     "Unknown BENZO_COMPAT_APPS example",
   );
+  report.reproduction = `BENZO_COMPAT_APPS=${selected.join(",")} pnpm test:compat state-in-url`;
   try {
     for (const app of examples) {
       h.signal?.throwIfAborted();
