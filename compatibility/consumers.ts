@@ -25,6 +25,18 @@ const examples = [
   "nextjs15",
   "nextjs16",
 ];
+export function consumerReproduction(
+  project: string,
+  selection?: string,
+): string {
+  if (project !== "state-in-url" || selection === undefined)
+    return `pnpm test:compat ${project}`;
+  assert.ok(
+    selection.split(",").every((app) => examples.includes(app)),
+    "Unknown BENZO_COMPAT_APPS example",
+  );
+  return `BENZO_COMPAT_APPS=${selection} pnpm test:compat state-in-url`;
+}
 function reachable(port: number, host = "localhost", path = "/") {
   return new Promise<boolean>((resolve, reject) => {
     const req = request(
@@ -127,6 +139,11 @@ export async function stateInUrl(h: Harness) {
     waitFor,
     getState,
   } = h;
+  report.reproduction = consumerReproduction(
+    "state-in-url",
+    h.env["BENZO_COMPAT_APPS"],
+  );
+  const selected = h.env["BENZO_COMPAT_APPS"]?.split(",") ?? examples;
   const pnpm = join(cache, "consumer-tools/node_modules/.bin/pnpm");
   if (!existsSync(pnpm))
     await run("npm", [
@@ -179,12 +196,6 @@ export async function stateInUrl(h: Harness) {
   };
   h.signal?.addEventListener("abort", abortBrowser, { once: true });
   report.browser = { name: "chromium", version: browser.version() };
-  const selected = process.env["BENZO_COMPAT_APPS"]?.split(",") ?? examples;
-  assert.ok(
-    selected.every((app) => examples.includes(app)),
-    "Unknown BENZO_COMPAT_APPS example",
-  );
-  report.reproduction = `BENZO_COMPAT_APPS=${selected.join(",")} pnpm test:compat state-in-url`;
   try {
     for (const app of examples) {
       h.signal?.throwIfAborted();

@@ -156,3 +156,48 @@ test("configured Benzo verdict is independent of competitor failure but requires
   assert.equal(configuredVerdict(scenarios, ["app"]), "failed");
   assert.equal(configuredVerdict([], []), "not-established");
 });
+
+test("selected examples survive failure before consumer setup", async () => {
+  const { stateInUrl, consumerReproduction } = await import("#bench/consumers");
+  const report: Report = {
+    scenarios: [],
+    reproduction: consumerReproduction("state-in-url", "react"),
+  };
+  assert.equal(
+    report.reproduction,
+    "BENZO_COMPAT_APPS=react pnpm test:compat state-in-url",
+  );
+  // Direct consumer callers must also record selection before their first setup call.
+  report.reproduction = "pnpm test:compat state-in-url";
+  const fail = (): never => {
+    assert.equal(report.reproduction, "BENZO_COMPAT_APPS=react pnpm test:compat state-in-url");
+    throw new Error("injected setup failure");
+  };
+  await assert.rejects(
+    stateInUrl({
+      checkout: "/unused",
+      cache: "/unused",
+      root: "/unused",
+      installedCli: "/unused",
+      report,
+      recipe: {
+        name: "state-in-url",
+        repository: "unused",
+        commit: "unused",
+        baselineScript: "dev",
+        requiredTools: [],
+      },
+      env: { BENZO_COMPAT_APPS: "react" },
+      run: async () => fail(),
+      background: fail,
+      freePort: async () => fail(),
+      waitFor: async () => fail(),
+      getState: async () => fail(),
+    }),
+    /injected setup failure/,
+  );
+  assert.equal(
+    report.reproduction,
+    "BENZO_COMPAT_APPS=react pnpm test:compat state-in-url",
+  );
+});

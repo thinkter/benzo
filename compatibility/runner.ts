@@ -32,7 +32,7 @@ import { chromium } from "@playwright/test";
 import { launch, stop } from "#production/process";
 import { loadManifest } from "#production/config";
 import { harnessProvenance, refusesConnection } from "./evidence.js";
-import { stateInUrl, sokosumi } from "./consumers.js";
+import { stateInUrl, sokosumi, consumerReproduction } from "./consumers.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const cache = join(root, ".compat");
@@ -48,6 +48,7 @@ const selected = process.argv
   .filter((arg) => arg !== "--require-pass");
 const env = {
   ...process.env,
+  BENZO_COMPAT_APPS: process.env["BENZO_COMPAT_APPS"],
   BROWSER: "none",
   HUSKY: "0",
   SHARP_IGNORE_GLOBAL_LIBVIPS: "1",
@@ -549,7 +550,7 @@ for (const recipe of recipes.filter(
     schemaVersion: 2,
     replacement: "not-established",
     execution: "running",
-    reproduction: `pnpm test:compat ${recipe.name}`,
+    reproduction: consumerReproduction(recipe.name, env["BENZO_COMPAT_APPS"]),
   };
   Object.defineProperty(report, "onFailure", {
     value: (name: string, error: Error) =>
