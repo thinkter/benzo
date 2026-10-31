@@ -116,6 +116,11 @@ export async function runClient({
   } finally {
     try {
       await stopOnce();
+    } catch (error) {
+      // A denied termination must not keep the CLI alive through its process
+      // handle. The failure still propagates; the command may still be running.
+      child.unref();
+      throw error;
     } finally {
       process.off("SIGINT", interrupt);
       process.off("SIGTERM", terminate);

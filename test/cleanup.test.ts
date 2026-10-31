@@ -273,3 +273,127 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     },
   );
 }
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  test(
+    "production CLI exits on " +
+      signal +
+      " cleanup failure before its child is cleaned up",
+    {
+      skip: process.platform === "win32",
+      timeout: 15000,
+    },
+    async () => {
+      const { spawn } = await import("node:child_process");
+      const { writeFile } = await import("node:fs/promises");
+      const { resolve } = await import("node:path");
+      const { pathToFileURL } = await import("node:url");
+      const root = await mkdtemp(join(tmpdir(), "benzo-cli-cleanup-"));
+      const oldHome = process.env["BENZO_HOME"];
+      const home = join(root, "home");
+      process.env["BENZO_HOME"] = home;
+      let controlPort = 0;
+      const server = createServer((_req, res) =>
+        res.end(
+          JSON.stringify({
+            protocol: PROTOCOL,
+            slot: 0,
+            ports: { web: 10001 },
+            urls: { web: "http://feature.localhost:3000" },
+            logs: {},
+            controlPort,
+            gateway: 3000,
+            instanceId: "instance",
+            projectId: "project",
+            worktreeId: "worktree",
+            name: "feature",
+            status: "ready",
+            startedAt: new Date().toISOString(),
+          }),
+        ),
+      );
+      let childPid: number | undefined;
+      let cli: ReturnType<typeof spawn> | undefined;
+      let exited: Promise<number | null> | undefined;
+      try {
+        controlPort = await listen(server);
+        writeState(root, { controlPort, token: "fixture" });
+        const preload = join(root, "deny-kill.mjs");
+        await writeFile(
+          preload,
+          'const kill = process.kill.bind(process); process.kill = (pid, signal) => { if (pid < 0) throw Object.assign(new Error("fixture EPERM"), {code: "EPERM"}); return kill(pid, signal); };',
+        );
+        cli = spawn(
+          process.execPath,
+          [
+            "--import",
+            pathToFileURL(preload).href,
+            resolve("dist/cli.js"),
+            "exec",
+            "--cwd",
+            root,
+            "--",
+            process.execPath,
+            "-e",
+            'require("node:fs").writeFileSync("child-pid", String(process.pid)); setInterval(() => {}, 1000);',
+          ],
+          {
+            env: { ...process.env, BENZO_HOME: home },
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
+        let stderr = "";
+        cli.stdout?.resume();
+        cli.stderr?.on("data", (chunk: Buffer) => {
+          stderr += chunk.toString();
+        });
+        exited = new Promise<number | null>((accept, reject) => {
+          cli?.once("error", reject);
+          cli?.once("exit", (code) => accept(code));
+        });
+        childPid = await until(async () => {
+          try {
+            return Number(await readFile(join(root, "child-pid"), "utf8"));
+          } catch (error) {
+            if (
+              error instanceof Error &&
+              "code" in error &&
+              error.code === "ENOENT"
+            )
+              return undefined;
+            throw error;
+          }
+        });
+        cli.kill(signal);
+        let timer: NodeJS.Timeout | undefined;
+        try {
+          const code = await Promise.race([
+            exited,
+            new Promise<never>((_accept, reject) => {
+              timer = setTimeout(
+                () => reject(new Error("CLI hung after cleanup failure")),
+                3000,
+              );
+            }),
+          ]);
+          assert.equal(code, 1);
+          assert.match(stderr, /fixture EPERM/);
+          // Assert before finally: CLI must exit while the unkillable fixture lives.
+          assert.equal(process.kill(childPid, 0), true);
+        } finally {
+          clearTimeout(timer);
+        }
+      } finally {
+        if (childPid !== undefined) await stop(childPid, { timeout: 0 });
+        if (cli && cli.exitCode === null && cli.signalCode === null)
+          cli.kill("SIGKILL");
+        await exited;
+        cli?.stdout?.destroy();
+        cli?.stderr?.destroy();
+        await close(server);
+        restoreHome(oldHome);
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+}
