@@ -2,17 +2,37 @@
   "project": "excalidraw",
   "repository": "https://github.com/excalidraw/excalidraw.git",
   "commit": "b99a49dbebd25fbf85ad9ae33c9e361a16d5a39e",
-  "benzoBuild": "70afb60e1715411627cb0b6079c6baa18f3bfe109bf2a2c00cfeae4f192e261a",
-  "testedAt": "2026-10-30T17:50:41.219Z",
+  "benzoBuild": "2cf84dbee97775685242e5f4fe6e18958482a7b347f09e326ccb5bdd9f2d9373",
+  "harnessSha256": "45bb79f42f0472277145c875ce2d43152aebacf613438cebf660e1f257e5ce61",
+  "testedAt": "2026-10-31T13:22:49.302Z",
   "platform": {
     "os": "linux",
     "architecture": "x64",
     "node": "v26.10.0"
   },
+  "bare": {
+    "argv": [],
+    "cwd": "repository-root",
+    "result": "passed"
+  },
+  "configured": {
+    "argv": [
+      "dev",
+      "--cwd",
+      "<worktree>",
+      "--gateway-port",
+      "<allocated>"
+    ],
+    "result": "passed"
+  },
   "baseline": "passed",
   "result": "passed",
   "applicationChangesRequired": false,
   "scenarios": [
+    {
+      "case": "bare-root-browser-drawing",
+      "result": "passed"
+    },
     {
       "case": "two-worktrees-browser-drawing",
       "result": "passed"
@@ -35,5 +55,6 @@
   "execution": "completed",
   "reproduction": "pnpm test:compat excalidraw",
   "discovery": "passed",
-  "sourceUnchanged": true
+  "sourceUnchanged": true,
+  "listenerCleanup": "passed"
 }

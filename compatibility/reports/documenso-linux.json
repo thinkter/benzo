@@ -2,12 +2,24 @@
   "project": "documenso",
   "repository": "https://github.com/documenso/documenso.git",
   "commit": "503cd1aa1c7507ef8cadf476a7998bec7673f6d2",
-  "benzoBuild": "70afb60e1715411627cb0b6079c6baa18f3bfe109bf2a2c00cfeae4f192e261a",
-  "testedAt": "2026-10-30T17:51:38.255Z",
+  "benzoBuild": "2cf84dbee97775685242e5f4fe6e18958482a7b347f09e326ccb5bdd9f2d9373",
+  "harnessSha256": "45bb79f42f0472277145c875ce2d43152aebacf613438cebf660e1f257e5ce61",
+  "testedAt": "2026-10-31T13:23:33.609Z",
   "platform": {
     "os": "linux",
     "architecture": "x64",
     "node": "v26.10.0"
+  },
+  "bare": {
+    "argv": [],
+    "cwd": "repository-root",
+    "result": "unsupported",
+    "exitCode": 1,
+    "reason": "Root script is an orchestrator; no automatic adaptation is attempted."
+  },
+  "configured": {
+    "result": "blocked",
+    "reason": "Missing usable docker. Documented Docker/PostgreSQL setup, migrations, translation compilation and test-only auth configuration. No baseline has been established on this host."
   },
   "baseline": "blocked",
   "result": "blocked",

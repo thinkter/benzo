@@ -2,12 +2,24 @@
   "project": "sokosumi",
   "repository": "https://github.com/masumi-network/sokosumi.git",
   "commit": "59c5275c0b5b539580d6c266a235a22fb32e3a0c",
-  "benzoBuild": "70afb60e1715411627cb0b6079c6baa18f3bfe109bf2a2c00cfeae4f192e261a",
-  "testedAt": "2026-10-30T17:51:38.287Z",
+  "benzoBuild": "2cf84dbee97775685242e5f4fe6e18958482a7b347f09e326ccb5bdd9f2d9373",
+  "harnessSha256": "45bb79f42f0472277145c875ce2d43152aebacf613438cebf660e1f257e5ce61",
+  "testedAt": "2026-10-31T13:26:43.172Z",
   "platform": {
     "os": "linux",
     "architecture": "x64",
     "node": "v26.10.0"
+  },
+  "bare": {
+    "argv": [],
+    "cwd": "repository-root",
+    "result": "unsupported",
+    "exitCode": 1,
+    "reason": "Root script is an orchestrator; no automatic adaptation is attempted."
+  },
+  "configured": {
+    "result": "blocked",
+    "reason": "No isolated PostgreSQL/auth baseline established; trusted browser HTTPS on port 443 has not been validated for this consumer. Benzo supports user-supplied TLS certificates."
   },
   "baseline": "not-run",
   "result": "blocked",
@@ -15,12 +27,12 @@
   "scenarios": [
     {
       "case": "complete-origin-preservation",
-      "result": "failed",
-      "evidence": "pinned-wrapper-source-and-missing-benzo-tls-capability",
+      "result": "blocked",
+      "evidence": "consumer-trust-and-backend-prerequisites-unverified",
       "runtimeJourneyExecuted": false,
-      "category": "missing-tls",
+      "category": "unverified-trust-and-backend",
       "expected": "https://web.sokosumi.localhost on implicit 443",
-      "actual": "Benzo currently exposes HTTP origins only"
+      "actual": "HTTPS transport exists; this consumer journey has not run"
     },
     {
       "case": "login-core-web-session-isolation",
@@ -34,5 +46,5 @@
   "reproduction": "pnpm test:compat sokosumi",
   "discovery": "unsupported",
   "discoveryDiagnostic": "The dev script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application.",
-  "reason": "No isolated PostgreSQL/auth baseline established; consumer also explicitly requires trusted HTTPS on port 443, which Benzo does not implement."
+  "reason": "No isolated PostgreSQL/auth baseline established; trusted browser HTTPS on port 443 has not been validated for this consumer. Benzo supports user-supplied TLS certificates."
 }
