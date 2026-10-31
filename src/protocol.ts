@@ -1,11 +1,13 @@
+import type { Socket } from "node:net";
+import type { ControlResponse, JsonObject } from "./types.js";
 import { createConnection } from "node:net";
 
 export const PROTOCOL = "benzo/1";
-export function receiveMessage(socket, callback, { multiple = false } = {}) {
+export function receiveMessage(socket: Socket, callback: (message: JsonObject) => void, { multiple = false }: { multiple?: boolean } = {}): void {
   socket.setEncoding("utf8");
   let buffer = "";
   let received = false;
-  const onData = (chunk) => {
+  const onData = (chunk: string) => {
     if (received) return;
     buffer += chunk;
     if (Buffer.byteLength(buffer) > 65536) {
@@ -38,7 +40,7 @@ export function connectShared({
   request,
   signal,
   timeout = 5000,
-} = {}) {
+}: { host?: string; port?: number; request?: JsonObject; signal?: AbortSignal; timeout?: number } = {}): Promise<ControlResponse> {
   return new Promise((accept, reject) => {
     if (signal?.aborted) return reject(new Error("Startup cancelled."));
     const socket = createConnection({ host, port });
@@ -47,7 +49,7 @@ export function connectShared({
       clearTimeout(timer);
       signal?.removeEventListener("abort", cancel);
     };
-    const fail = (error) => {
+    const fail = (error: Error) => {
       if (settled) return;
       settled = true;
       clean();
@@ -68,23 +70,23 @@ export function connectShared({
     socket.once("connect", () =>
       socket.write(`${JSON.stringify({ ...request, protocol: PROTOCOL })}\n`),
     );
-    socket.on("error", (error) => fail(error));
+    socket.on("error", (error: Error) => fail(error));
     socket.once("close", () =>
       fail(new Error("Benzo gateway closed during registration.")),
     );
-    receiveMessage(socket, (message) => {
+    receiveMessage(socket, (message: JsonObject) => {
       if (message.protocol !== PROTOCOL)
         return fail(
           new Error(
             "Control port belongs to another application or incompatible Benzo version.",
           ),
         );
-      if (message.error) return fail(new Error(message.error));
-      if (!message.ready)
+      if (typeof message.error === "string") return fail(new Error(message.error));
+      if (message.ready !== true)
         return fail(new Error("Invalid Benzo gateway response."));
       settled = true;
       clean();
-      accept({ ...message, socket });
+      accept({ ...message, socket } as ControlResponse);
     });
   });
 }

@@ -1,4 +1,4 @@
-import type { PublicState } from "./types.js";
+import type { PublicState, EnvironmentDescriptor } from "./types.js";
 // Public data only. Control tokens and supervisor addresses never belong here.
 export function environmentDescriptor(state: PublicState): EnvironmentDescriptor {
   if (!state?.instanceId || !state?.projectId || !state?.worktreeId)
@@ -23,4 +23,3 @@ export function environmentDescriptor(state: PublicState): EnvironmentDescriptor
   };
 }
 
-export interface EnvironmentDescriptor { schemaVersion: 1; kind: "benzo-environment"; projectId: string; worktreeId: string; instanceId: string; name: string; status: string; startedAt: string; owner: { kind: "benzo-launcher"; lifetime: "launcher-connection" }; services: Array<{ id: string; name: string; origin: string; upstream: { host: string; port: number }; readiness: "ready" | "not-ready" }>; }
