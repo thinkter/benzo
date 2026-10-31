@@ -1,3 +1,45 @@
+import type { Server, IncomingHttpHeaders } from "node:http";
+import type { ChildProcess } from "node:child_process";
+import type { JsonValue, JsonObject } from "#production/types";
+function portOf(server: Server): number {
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  return address.port;
+}
+function object(value: JsonValue | undefined): JsonObject {
+  assert.ok(
+    value !== null && typeof value === "object" && !Array.isArray(value),
+  );
+  return value;
+}
+function descriptor(text: string) {
+  const parsed: JsonValue = JSON.parse(text);
+  const value = object(parsed);
+  if (value["status"] !== "ready") return undefined;
+  const instanceId = value["instanceId"];
+  assert.equal(typeof instanceId, "string");
+  assert.ok(typeof instanceId === "string");
+  const services = value["services"];
+  assert.ok(Array.isArray(services));
+  const service = object(services[0]);
+  const origin = service["origin"];
+  assert.ok(typeof origin === "string");
+  const port = object(service["upstream"])["port"];
+  assert.ok(
+    typeof port === "number" &&
+      Number.isInteger(port) &&
+      port > 0 &&
+      port < 65536,
+  );
+  return { instanceId, service: { origin, port } };
+}
+type ReadyDescriptor = NonNullable<ReturnType<typeof descriptor>>;
+type ExitResult = {
+  error?: Error;
+  code?: number | null;
+  signal?: NodeJS.Signals | null;
+};
+type RunningChild = ChildProcess & { done: Promise<ExitResult> };
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
@@ -11,32 +53,36 @@ import { setTimeout as delay } from "node:timers/promises";
 
 const exec = promisify(execFile);
 const cli = resolve("dist/cli.js");
-const cycles = Number(process.env.BENZO_SOAK_CYCLES ?? 8);
+const cycles = Number(process.env["BENZO_SOAK_CYCLES"] ?? 8);
 if (!Number.isInteger(cycles) || cycles < 2 || cycles > 1000)
   throw new Error("BENZO_SOAK_CYCLES must be an integer from 2 to 1000.");
-const listen = (server) =>
-  new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const close = (server) =>
-  new Promise((resolve) => {
-    server.close(resolve);
+const listen = (server: Server) =>
+  new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+const close = (server: Server) =>
+  new Promise<void>((resolve) => {
+    server.close(() => resolve());
     server.closeAllConnections();
   });
-async function waitFor(check) {
+async function waitFor<T>(check: () => Promise<T>): Promise<NonNullable<T>> {
   const deadline = Date.now() + 15000;
-  let error;
+  let error: Error | undefined;
   while (Date.now() < deadline) {
     try {
       const value = await check();
       if (value) return value;
     } catch (value) {
-      error = value;
+      error = value instanceof Error ? value : new Error("Non-Error failure");
     }
     await delay(60);
   }
   throw error ?? new Error("Lifecycle fixture timed out");
 }
-function get(port, host = "localhost", path = "/") {
-  return new Promise((resolve, reject) => {
+function get(port: number, host = "localhost", path = "/") {
+  return new Promise<{
+    status: number | undefined;
+    headers: IncomingHttpHeaders;
+    body: string;
+  }>((resolve, reject) => {
     const req = request(
       {
         hostname: "127.0.0.1",
@@ -46,7 +92,7 @@ function get(port, host = "localhost", path = "/") {
       },
       (res) => {
         let body = "";
-        res.on("data", (chunk) => (body += chunk));
+        res.on("data", (chunk: Buffer) => (body += chunk.toString()));
         res.on("end", () =>
           resolve({ status: res.statusCode, headers: res.headers, body }),
         );
@@ -59,12 +105,14 @@ function get(port, host = "localhost", path = "/") {
     req.end();
   });
 }
-async function refuses(port) {
+async function refuses(port: number) {
   try {
     await get(port);
     return false;
   } catch (error) {
-    return error.code === "ECONNREFUSED";
+    return (
+      error instanceof Error && "code" in error && error.code === "ECONNREFUSED"
+    );
   }
 }
 
@@ -80,15 +128,15 @@ test(
       first = join(root, "first"),
       second = join(root, "second");
     const env = { ...process.env, BENZO_HOME: home };
-    const children = [];
+    const children: RunningChild[] = [];
     const foreign = createServer((_req, res) => res.end("unrelated listener"));
     const probe = createServer();
     await listen(probe);
-    const port = probe.address().port;
+    const port = portOf(probe);
     await close(probe);
-    const call = (cwd, ...args) =>
+    const call = (cwd: string, ...args: string[]) =>
       exec(process.execPath, [cli, ...args], { cwd, env, timeout: 10000 });
-    function start(cwd) {
+    function start(cwd: string): RunningChild {
       const child = spawn(
         process.execPath,
         [cli, "--gateway-port", String(port)],
@@ -96,27 +144,25 @@ test(
       );
       child.stdout.resume();
       child.stderr.resume();
-      child.done = new Promise((resolve) => {
+      const done = new Promise<ExitResult>((resolve) => {
         child.once("error", (error) => resolve({ error }));
         child.once("exit", (code, signal) => resolve({ code, signal }));
       });
-      children.push(child);
-      return child;
+      const running = Object.assign(child, { done });
+      children.push(running);
+      return running;
     }
-    const ready = (cwd) =>
-      waitFor(async () => {
-        const descriptor = JSON.parse(
-          (await call(cwd, "describe", "--json")).stdout,
-        );
-        return descriptor?.status === "ready" ? descriptor : undefined;
-      });
-    const authorise = async (descriptor) => {
+    const ready = (cwd: string) =>
+      waitFor(async () =>
+        descriptor((await call(cwd, "describe", "--json")).stdout),
+      );
+    const authorise = async (descriptor: ReadyDescriptor) => {
       const state = randomUUID();
       assert.equal(
         (
           await get(
             port,
-            new URL(descriptor.services[0].origin).host,
+            new URL(descriptor.service.origin).host,
             `/signin?state=${state}`,
           )
         ).status,
@@ -137,8 +183,10 @@ test(
       }
       let anchor = start(first),
         anchorState = await ready(first);
-      let previousState, previousDescriptor, peer;
-      const instances = new Set();
+      let previousState: string | undefined;
+      let previousDescriptor: ReadyDescriptor | undefined;
+      let peer: RunningChild;
+      const instances = new Set<string>();
       for (let index = 0; index < cycles; index++) {
         peer = start(second);
         const current = await ready(second);
@@ -146,13 +194,10 @@ test(
         instances.add(current.instanceId);
         if (previousDescriptor) {
           assert.equal(
-            current.services[0].origin,
-            previousDescriptor.services[0].origin,
+            current.service.origin,
+            previousDescriptor.service.origin,
           );
-          assert.equal(
-            current.services[0].upstream.port,
-            previousDescriptor.services[0].upstream.port,
-          );
+          assert.equal(current.service.port, previousDescriptor.service.port);
           const stale = await get(
             port,
             `localhost:${port}`,
@@ -170,7 +215,7 @@ test(
               `/callback?state=${valid}&code=fresh`,
             )
           ).headers.location,
-          `${current.services[0].origin}/callback?state=${valid}&code=fresh`,
+          `${current.service.origin}/callback?state=${valid}&code=fresh`,
         );
         previousState = await authorise(current);
         previousDescriptor = current;
@@ -181,46 +226,42 @@ test(
           peer.kill("SIGKILL");
           assert.equal((await peer.done).signal, "SIGKILL");
         }
-        await waitFor(() => refuses(current.services[0].upstream.port));
+        await waitFor(() => refuses(current.service.port));
         await waitFor(
           async () =>
-            (await get(port, new URL(current.services[0].origin).host))
-              .status === 404,
+            (await get(port, new URL(current.service.origin).host)).status ===
+            404,
         );
         assert.equal(
-          (await get(port, new URL(anchorState.services[0].origin).host)).body,
+          (await get(port, new URL(anchorState.service.origin).host)).body,
           "alive",
         );
-        assert.equal(
-          (await get(foreign.address().port)).body,
-          "unrelated listener",
-        );
+        assert.equal((await get(portOf(foreign))).body, "unrelated listener");
       }
       peer = start(second);
       const beforeLoss = await ready(second);
       const lostState = await authorise(beforeLoss);
-      const registry = JSON.parse(
+      const registryJson: JsonValue = JSON.parse(
         await readFile(
           join(home, "gateways", String(port), "gateway.json"),
           "utf8",
         ),
       );
-      process.kill(registry.pid, "SIGKILL"); // Only this fixture's private gateway.
+      const pid = object(registryJson)["pid"];
+      assert.ok(typeof pid === "number" && Number.isInteger(pid) && pid > 0);
+      process.kill(pid, "SIGKILL"); // Only this fixture's private gateway.
       assert.equal((await anchor.done).code, 1);
       assert.equal((await peer.done).code, 1);
-      await waitFor(() => refuses(anchorState.services[0].upstream.port));
-      await waitFor(() => refuses(beforeLoss.services[0].upstream.port));
-      assert.equal(
-        (await get(foreign.address().port)).body,
-        "unrelated listener",
-      );
+      await waitFor(() => refuses(anchorState.service.port));
+      await waitFor(() => refuses(beforeLoss.service.port));
+      assert.equal((await get(portOf(foreign))).body, "unrelated listener");
       anchor = start(first);
       const restartedAnchor = await ready(first);
       peer = start(second);
       const afterLoss = await ready(second);
       assert.notEqual(restartedAnchor.instanceId, anchorState.instanceId);
       assert.notEqual(afterLoss.instanceId, beforeLoss.instanceId);
-      assert.equal(afterLoss.services[0].origin, beforeLoss.services[0].origin);
+      assert.equal(afterLoss.service.origin, beforeLoss.service.origin);
       assert.equal(
         (
           await get(
@@ -246,8 +287,8 @@ test(
       assert.equal((await peer.done).code, 0);
       await call(first, "stop");
       assert.equal((await anchor.done).code, 0);
-      await waitFor(() => refuses(afterLoss.services[0].upstream.port));
-      await waitFor(() => refuses(restartedAnchor.services[0].upstream.port));
+      await waitFor(() => refuses(afterLoss.service.port));
+      await waitFor(() => refuses(restartedAnchor.service.port));
       await waitFor(() => refuses(port));
       t.diagnostic(
         `${cycles} peer restart cycles plus forced gateway restart completed; not an overnight soak.`,

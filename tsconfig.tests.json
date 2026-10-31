@@ -5,16 +5,14 @@
     "outDir": ".test-dist",
     "declaration": false,
     "declarationMap": false,
-    "types": [
-      "node",
-      "bun"
-    ]
+    "types": ["node", "bun"]
   },
   "include": [
     "test/streaming.test.ts",
     "test/better-auth.test.ts",
     "test/test-watch.test.ts",
     "test/portless-plan.test.ts",
-    "test/tls.test.ts"
+    "test/tls.test.ts",
+    "test/lifecycle-soak.test.ts"
   ]
 }
