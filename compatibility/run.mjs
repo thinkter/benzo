@@ -12,12 +12,13 @@ import {
 } from "node:fs";
 import { readFile, writeFile, rm, appendFile } from "node:fs/promises";
 import { resolve, join, delimiter, dirname } from "node:path";
-import { createServer, createConnection } from "node:net";
+import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "@playwright/test";
 import { launch, stop } from "../src/process.js";
 import { loadManifest } from "../src/config.js";
+import { harnessProvenance, refusesConnection } from "./evidence.mjs";
 import { stateInUrl, sokosumi } from "./consumers.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -138,20 +139,6 @@ async function freePort() {
   const port = server.address().port;
   await new Promise((resolve) => server.close(resolve));
   return port;
-}
-async function refusesConnection(port) {
-  return new Promise((resolve) => {
-    const socket = createConnection({ host: "127.0.0.1", port });
-    socket.once("connect", () => {
-      socket.destroy();
-      resolve(false);
-    });
-    socket.once("error", (error) => resolve(error.code === "ECONNREFUSED"));
-    socket.setTimeout(1000, () => {
-      socket.destroy();
-      resolve(false);
-    });
-  });
 }
 async function auditRejectedBare(checkout, report) {
   report.bare = { argv: [], cwd: "repository-root", result: "running" };
@@ -283,7 +270,8 @@ async function excalidraw(recipe, checkout, report) {
   let browser;
   const children = [];
   const worktrees = [];
-  const listenerPorts = [];
+  const listenerPorts = [baselinePort];
+  const gatewayPorts = new Set();
   try {
     browser = await chromium.launch({ headless: true });
     const baselineContext = await browser.newContext();
@@ -332,7 +320,8 @@ async function excalidraw(recipe, checkout, report) {
           );
         return getState(checkout);
       }, 45000);
-      listenerPorts.push(...Object.values(state.ports));
+      listenerPorts.push(...Object.values(state.ports), 2999);
+      gatewayPorts.add(3000);
       assert.equal(new URL(state.urls.web).port, "3000");
       await journey(await bareContext.newPage(), state.urls.web);
       report.bare.result = "passed";
@@ -388,7 +377,11 @@ async function excalidraw(recipe, checkout, report) {
         ),
       );
       states.push(await waitFor(() => getState(cwd)));
-      listenerPorts.push(...Object.values(states.at(-1).ports));
+      listenerPorts.push(
+        ...Object.values(states.at(-1).ports),
+        gatewayPort - 1,
+      );
+      gatewayPorts.add(gatewayPort);
     }
     assert.equal(states[0].name, "feature");
     assert.equal(states[1].name, "feature-2");
@@ -470,6 +463,16 @@ async function excalidraw(recipe, checkout, report) {
     await browser?.close();
     for (const port of listenerPorts)
       await waitFor(() => refusesConnection(port), 15000);
+    for (const gatewayPort of gatewayPorts) {
+      for (const address of ["127.0.0.1", "::1"])
+        await waitFor(() => refusesConnection(gatewayPort, address), 15000);
+    }
+    report.cleanupScope = {
+      baseline: "IPv4 loopback",
+      services: "IPv4 loopback",
+      control: "IPv4 loopback",
+      gateways: ["127.0.0.1", "::1"],
+    };
     report.listenerCleanup = "passed";
   }
 }
@@ -488,10 +491,7 @@ for (const recipe of recipes.filter(
     repository: recipe.repository,
     commit: recipe.commit,
     benzoBuild: build,
-    harnessSha256: createHash("sha256")
-      .update(readFileSync(join(root, "compatibility/run.mjs")))
-      .update(readFileSync(join(root, "compatibility/consumers.mjs")))
-      .digest("hex"),
+    ...harnessProvenance(root),
     testedAt: new Date().toISOString(),
     platform: {
       os: process.platform,

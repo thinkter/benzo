@@ -41,3 +41,65 @@ test("Sokosumi prerequisites are blocked evidence rather than a fictitious TLS f
   );
   assert.equal(report.scenarios[0].runtimeJourneyExecuted, false);
 });
+
+test("bench provenance changes with verdicts, recipes and runtime helpers", async () => {
+  const { harnessProvenance } = await import("../compatibility/evidence.mjs");
+  const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = await mkdtemp(join(tmpdir(), "benzo-provenance-"));
+  try {
+    await mkdir(join(root, "compatibility/recipes"), { recursive: true });
+    await mkdir(join(root, "src"));
+    const files = [
+      "compatibility/run.mjs",
+      "compatibility/consumers.mjs",
+      "compatibility/acceptance.mjs",
+      "compatibility/evidence.mjs",
+      "compatibility/recipes/projects.json",
+      "src/process.js",
+      "package.json",
+      "pnpm-lock.yaml",
+    ];
+    for (const file of files) await writeFile(join(root, file), "original");
+    const before = harnessProvenance(root);
+    assert.equal(before.harnessInputs.length, files.length);
+    for (const file of files) {
+      await writeFile(join(root, file), "changed");
+      assert.notEqual(
+        harnessProvenance(root).harnessSha256,
+        before.harnessSha256,
+        file,
+      );
+      await writeFile(join(root, file), "original");
+    }
+    assert.deepEqual(harnessProvenance(root), before);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+for (const host of ["127.0.0.1", "::1"]) {
+  test(`cleanup probe detects a live listener on ${host}`, async (t) => {
+    const { refusesConnection } = await import("../compatibility/evidence.mjs");
+    const { createServer } = await import("node:net");
+    const server = createServer((socket) => socket.end());
+    try {
+      await new Promise((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(0, host, resolve);
+      });
+    } catch (error) {
+      if (["EADDRNOTAVAIL", "EAFNOSUPPORT"].includes(error.code))
+        return t.skip(error.code);
+      throw error;
+    }
+    const port = server.address().port;
+    try {
+      assert.equal(await refusesConnection(port, host), false);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+    assert.equal(await refusesConnection(port, host), true);
+  });
+}
