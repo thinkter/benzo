@@ -1,3 +1,24 @@
+import type { Server, IncomingMessage } from "node:http";
+function portOf(server: Server): number {
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  return address.port;
+}
+function required(parameters: URLSearchParams, name: string): string {
+  const value = parameters.get(name);
+  assert.ok(value !== null, "Missing OAuth parameter: " + name);
+  return value;
+}
+function readBody(request: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let text = "";
+    request.on("data", (chunk: Buffer) => {
+      text += chunk.toString();
+    });
+    request.once("end", () => resolve(text));
+    request.once("error", reject);
+  });
+}
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
@@ -7,12 +28,12 @@ import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { toNodeHandler } from "better-auth/node";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
-import { createGateway } from "../../dist/core.js";
-const listen = (server, port = 0) =>
-  new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
-const close = (server) =>
-  new Promise((resolve) => {
-    server.close(resolve);
+import { createGateway } from "#production/core";
+const listen = (server: Server, port = 0) =>
+  new Promise<void>((resolve) => server.listen(port, "127.0.0.1", resolve));
+const close = (server: Server) =>
+  new Promise<void>((resolve) => {
+    server.close(() => resolve());
     server.closeAllConnections();
   });
 const html = `<!doctype html><title>Auth fixture</title><button id="login">Sign in</button><button id="logout">Sign out</button><output id="session"></output><script>
@@ -24,12 +45,15 @@ test(
   "browser OAuth baseline and two named worktrees keep one callback, PKCE and isolated cookies",
   { timeout: 60000 },
   async () => {
-    let fixedCallback;
-    const codes = new Map();
+    let fixedCallback: string;
+    const codes = new Map<
+      string,
+      { challenge: string | null; callback: string | null }
+    >();
     let authorizations = 0;
     let validated = 0;
     const provider = createServer(async (req, res) => {
-      const url = new URL(req.url, "http://provider");
+      const url = new URL(req.url ?? "/", "http://provider");
       if (url.pathname === "/authorize") {
         assert.equal(url.searchParams.get("redirect_uri"), fixedCallback);
         assert.equal(url.searchParams.get("code_challenge_method"), "S256");
@@ -40,25 +64,27 @@ test(
         });
         authorizations++;
         const destination = new URL(fixedCallback);
-        destination.searchParams.set("state", url.searchParams.get("state"));
+        destination.searchParams.set(
+          "state",
+          required(url.searchParams, "state"),
+        );
         destination.searchParams.set("code", code);
         return res.writeHead(302, { location: destination.href }).end();
       }
       if (url.pathname === "/token") {
-        let body = "";
-        for await (const chunk of req) body += chunk;
+        const body = await readBody(req);
         const parameters = new URLSearchParams(body);
-        const code = codes.get(parameters.get("code"));
+        const code = codes.get(required(parameters, "code"));
         assert.ok(code);
         assert.equal(parameters.get("redirect_uri"), code.callback);
         assert.equal(
           createHash("sha256")
-            .update(parameters.get("code_verifier"))
+            .update(required(parameters, "code_verifier"))
             .digest("base64url"),
           code.challenge,
         );
         validated++;
-        codes.delete(parameters.get("code"));
+        codes.delete(required(parameters, "code"));
         return res.writeHead(200, { "content-type": "application/json" }).end(
           JSON.stringify({
             access_token: "test-only-access",
@@ -76,13 +102,13 @@ test(
             email_verified: true,
           }),
         );
-      res.writeHead(404).end();
+      return res.writeHead(404).end();
     });
     await listen(provider);
-    const providerOrigin = `http://127.0.0.1:${provider.address().port}`;
+    const providerOrigin = `http://127.0.0.1:${portOf(provider)}`;
     const placeholder = createServer();
     await listen(placeholder);
-    const gatewayPort = placeholder.address().port;
+    const gatewayPort = portOf(placeholder);
     await close(placeholder);
     fixedCallback = `http://localhost:${gatewayPort}/api/auth/callback/local`;
     function app() {
@@ -116,7 +142,7 @@ test(
       });
       const handler = toNodeHandler(auth);
       return createServer((req, res) =>
-        req.url.startsWith("/api/auth/")
+        req.url?.startsWith("/api/auth/")
           ? handler(req, res)
           : res.writeHead(200, { "content-type": "text/html" }).end(html),
       );
@@ -127,10 +153,10 @@ test(
     const context = await browser.newContext();
     context.setDefaultTimeout(12000);
     context.setDefaultNavigationTimeout(20000);
-    let gateway;
+    let gateway: ReturnType<typeof createGateway> | undefined;
     try {
       // localhost may resolve to ::1 in a browser, so bind baseline dual-stack.
-      await new Promise((resolve) => first.listen(gatewayPort, resolve));
+      await new Promise<void>((resolve) => first.listen(gatewayPort, resolve));
       const baseline = await context.newPage();
       await baseline.goto(`http://localhost:${gatewayPort}`);
       await baseline.locator("#login").click();
@@ -157,13 +183,10 @@ test(
       gateway = createGateway({
         port: gatewayPort,
         routes: new Map([
-          [
-            "first.localhost",
-            { port: first.address().port, auth: { mode: "relay" } },
-          ],
+          ["first.localhost", { port: portOf(first), auth: { mode: "relay" } }],
           [
             "second.localhost",
-            { port: second.address().port, auth: { mode: "relay" } },
+            { port: portOf(second), auth: { mode: "relay" } },
           ],
         ]),
       });
