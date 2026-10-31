@@ -6,28 +6,28 @@
       "problem": "Service startup could race listeners still holding assigned ports and report Ready without a working server.",
       "status": "fixed",
       "fix": "Await service listener handoff while retaining an independent ownership lease; probe readiness before summary.",
-      "regression": "test/runtime.test.js: zero-config startup and readiness timeout"
+      "regression": "test/runtime.test.ts: zero-config startup and readiness timeout"
     },
     {
       "id": "BENZO-002",
       "problem": "Blanket environment filtering removed existing auth settings and NODE_ENV from unchanged applications.",
       "status": "fixed",
       "fix": "Preserve inherited environment; allow explicit per-service excludeEnv; never serialize inherited values to state.",
-      "regression": "test/core.test.ts: application environments; test/runtime.test.js: environment preservation"
+      "regression": "test/core.test.ts: application environments; test/runtime.test.ts: environment preservation"
     },
     {
       "id": "BENZO-003",
       "problem": "Fragmented registration, duplicate checkouts, stale PID state and idle cleanup were unreliable.",
       "status": "fixed",
       "fix": "Bounded framed/versioned protocol, authenticated leases, canonical worktree identity, supervisor stop and cancelled idle shutdown.",
-      "regression": "test/core.test.ts: control registration; test/runtime.test.js: parallel and simultaneous starts"
+      "regression": "test/core.test.ts: control registration; test/runtime.test.ts: parallel and simultaneous starts"
     },
     {
       "id": "BENZO-004",
       "problem": "Detached service processes could survive abrupt foreground launcher death.",
       "status": "fixed-on-tested-linux",
       "fix": "Gateway tracks child ownership on live leases and reaps owned groups when a lease closes.",
-      "regression": "test/runtime.test.js: abrupt launcher termination",
+      "regression": "test/runtime.test.ts: abrupt launcher termination",
       "limitation": "Native Windows execution remains unverified locally; Windows cannot simulate POSIX SIGKILL."
     },
     {
@@ -71,14 +71,14 @@
       "problem": "Simultaneous explicitly named launches fell back to checkout folder names instead of numeric suffixes.",
       "status": "fixed",
       "fix": "Carry the unsuffixed requested base name through gateway registration.",
-      "regression": "test/runtime.test.js: simultaneous first starts"
+      "regression": "test/runtime.test.ts: simultaneous first starts"
     },
     {
       "id": "BENZO-011",
       "problem": "The npm bin symlink exited without running the CLI because argv and the module realpath differed.",
       "status": "fixed",
       "fix": "Canonicalize the entrypoint before checking whether to run main.",
-      "regression": "test/runtime.test.js: npm-style bin symlink; compatibility/run.mjs: installed bin and package exports"
+      "regression": "test/runtime.test.ts: npm-style bin symlink; compatibility/run.mjs: installed bin and package exports"
     },
     {
       "id": "BENZO-012",
