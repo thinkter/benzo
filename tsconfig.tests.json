@@ -18,6 +18,8 @@
     "test/browser/form-post.test.ts",
     "test/cleanup.test.ts",
     "test/browser/auth.test.ts",
-    "test/browser/frameworks.test.ts"
+    "test/browser/frameworks.test.ts",
+    "test/auth.test.ts",
+    "test/core.test.ts"
   ]
 }

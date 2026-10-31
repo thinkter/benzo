@@ -1,3 +1,30 @@
+import type {
+  Server as HttpServer,
+  IncomingHttpHeaders,
+  OutgoingHttpHeaders,
+  IncomingMessage,
+} from "node:http";
+import type { Server } from "node:net";
+import type { JsonValue } from "#production/types";
+function portOf(server: Server): number {
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  return address.port;
+}
+// Invalid inputs intentionally cross the same untyped boundary as JS callers.
+function normalizeInvalid(value: JsonValue | object): void {
+  Reflect.apply(normalizeManifest, undefined, [value]);
+}
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk: Buffer) => {
+      body += chunk.toString();
+    });
+    req.once("end", () => resolve(body));
+    req.once("error", reject);
+  });
+}
 import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
@@ -22,22 +49,36 @@ import {
   worktreeName,
   connectShared,
   PROTOCOL,
-} from "../dist/core.js";
+} from "#production/core";
 
-import { planProvenance } from "../dist/plan.js";
+import { planProvenance } from "#production/plan";
 
-export async function close(server) {
-  await new Promise((resolve) => {
-    server.close(resolve);
-    server.closeAllConnections?.();
+export async function close(server: Server | HttpServer) {
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve());
+    if ("closeAllConnections" in server) server.closeAllConnections();
   });
 }
 export async function request(
-  port,
+  port: number,
   path = "/",
-  { host = "feature.localhost:3000", method = "GET", headers = {}, body } = {},
+  {
+    host = "feature.localhost:3000",
+    method = "GET",
+    headers = {},
+    body,
+  }: {
+    host?: string;
+    method?: string;
+    headers?: OutgoingHttpHeaders;
+    body?: string;
+  } = {},
 ) {
-  return new Promise((accept, reject) => {
+  return new Promise<{
+    status: number | undefined;
+    headers: IncomingHttpHeaders;
+    body: string;
+  }>((accept, reject) => {
     const req = httpRequest(
       {
         host: "127.0.0.1",
@@ -47,8 +88,8 @@ export async function request(
         headers: { host, connection: "close", ...headers },
       },
       (response) => {
-        const chunks = [];
-        response.on("data", (chunk) => chunks.push(chunk));
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
         response.on("end", () =>
           accept({
             status: response.statusCode,
@@ -88,7 +129,9 @@ test("load manifest, expand commands and validate non-overlapping leases", async
     );
     const manifest = loadManifest(directory);
     assert.equal(manifest.auth.mode, "pass-through");
-    assert.deepEqual(serviceCommand(manifest.services[0], { port: "10001" }), {
+    const firstService = manifest.services[0];
+    assert.ok(firstService);
+    assert.deepEqual(serviceCommand(firstService, { port: "10001" }), {
       command: "node",
       args: ["server.js", "10001"],
     });
@@ -101,7 +144,7 @@ test("load manifest, expand commands and validate non-overlapping leases", async
       { name: "../escape", command: "node" },
       { name: "web", command: "node", args: "wrong" },
     ])
-      assert.throws(() => normalizeManifest({ services: [service] }));
+      assert.throws(() => normalizeInvalid({ services: [service] }));
     assert.throws(() =>
       normalizeManifest({
         worktree: { stride: 1 },
@@ -116,27 +159,62 @@ test("manifest version and raw field types fail before launch with value-free di
   const service = { name: "web", command: "node" };
   const base = { services: [service] };
   assert.equal(normalizeManifest(base).schemaVersion, 1);
-  for (const config of [null, [], "secret-value", { ...base, schemaVersion: 2 },
-    ...["gateway", "worktree", "auth", "backend"].flatMap(key => [null, [], "secret-value"].map(value => ({ ...base, [key]: value }))),
-    { ...base, services: [null] }, { ...base, services: "secret-value" },
+  for (const config of [
+    null,
+    [],
+    "secret-value",
+    { ...base, schemaVersion: 2 },
+    ...["gateway", "worktree", "auth", "backend"].flatMap((key) =>
+      [null, [], "secret-value"].map((value) => ({ ...base, [key]: value })),
+    ),
+    { ...base, services: [null] },
+    { ...base, services: "secret-value" },
     ...[
-      { args: null }, { args: [42] }, { cwd: 12 }, { env: [] }, { env: { TOKEN: 42 } },
-      { excludeEnv: "TOKEN" }, { excludeEnv: [12] }, { ready: "secret-value" },
-      { ready: { type: "tpc" } }, { ready: { path: "secret-value" } },
-      { ready: { path: "/health with space" } }, { ready: { status: "200" } },
-      { ready: { status: 600 } }, { ready: { timeout: 0 } }, { ready: { timeout: Infinity } },
-    ].map(fields => ({ services: [{ ...service, ...fields }] })),
-    { ...base, backend: { mode: "shared", command: "node", args: "secret-value" } },
-    { ...base, auth: { mode: "callback", upstream: "https://", pathPrefix: "/" } },
-    { ...base, auth: { pathPrefix: 42 } }, { ...base, auth: { callbackPath: "secret-value" } },
-    { ...base, backend: { mode: null } }, { ...base, auth: { mode: null } },
+      { args: null },
+      { args: [42] },
+      { cwd: 12 },
+      { env: [] },
+      { env: { TOKEN: 42 } },
+      { excludeEnv: "TOKEN" },
+      { excludeEnv: [12] },
+      { ready: "secret-value" },
+      { ready: { type: "tpc" } },
+      { ready: { path: "secret-value" } },
+      { ready: { path: "/health with space" } },
+      { ready: { status: "200" } },
+      { ready: { status: 600 } },
+      { ready: { timeout: 0 } },
+      { ready: { timeout: Infinity } },
+    ].map((fields) => ({ services: [{ ...service, ...fields }] })),
+    {
+      ...base,
+      backend: { mode: "shared", command: "node", args: "secret-value" },
+    },
+    {
+      ...base,
+      auth: { mode: "callback", upstream: "https://", pathPrefix: "/" },
+    },
+    { ...base, auth: { pathPrefix: 42 } },
+    { ...base, auth: { callbackPath: "secret-value" } },
+    { ...base, backend: { mode: null } },
+    { ...base, auth: { mode: null } },
   ]) {
-    assert.throws(() => normalizeManifest(config), error =>
-      error instanceof Error && !(error instanceof TypeError) && !error.message.includes("secret-value"));
+    assert.throws(
+      () => normalizeInvalid(config),
+      (error) =>
+        error instanceof Error &&
+        !(error instanceof TypeError) &&
+        !error.message.includes("secret-value"),
+    );
   }
-  const config = normalizeManifest({ ...base, schemaVersion: 1,
-    gateway: { prot: "secret-value" }, extension: { token: "secret-value" },
-    services: [{ ...service, ready: { timeuot: "secret-value" } }],
+  const config = normalizeManifest({
+    ...base,
+    schemaVersion: 1,
+    gateway: { ...{ prot: "secret-value" }, port: 3000 },
+    ...{ extension: { token: "secret-value" } },
+    services: [
+      { ...service, ready: { ...{ timeuot: "secret-value" }, type: "http" } },
+    ],
   });
   const diagnostics = manifestDiagnostics(config);
   assert.deepEqual(diagnostics, [
@@ -145,7 +223,11 @@ test("manifest version and raw field types fail before launch with value-free di
     { code: "unknown-field", path: 'services[0].ready["timeuot"]' },
   ]);
   assert.equal(JSON.stringify(diagnostics).includes("secret-value"), false);
-  assert.equal(config.extension.token, "secret-value");
+  const preserved: JsonValue = JSON.parse(JSON.stringify(config));
+  assert.ok(
+    preserved && typeof preserved === "object" && !Array.isArray(preserved),
+  );
+  assert.deepEqual(preserved["extension"], { token: "secret-value" });
 });
 
 test("zero-config discovery preserves scripts and applies documented framework flags", async () => {
@@ -162,7 +244,7 @@ test("zero-config discovery preserves scripts and applies documented framework f
       await writeFile(join(directory, "package.json"), pkg);
       const config = discoverManifest(directory);
       assert.equal(config.discovery, framework);
-      assert.ok(config.services[0].args.includes("{port}"));
+      assert.ok(config.services[0]?.args?.includes("{port}"));
       assert.equal(
         await import("node:fs/promises").then((fs) =>
           fs.readFile(join(directory, "package.json"), "utf8"),
@@ -202,7 +284,7 @@ test("zero-config discovery preserves scripts and applies documented framework f
       JSON.stringify({ scripts: { dev: "next dev" } }),
     );
     assert.equal(
-      discoverManifest(nested).services[0].command,
+      discoverManifest(nested).services[0]?.command,
       "pnpm",
       "Workspace packages inherit the root package manager",
     );
@@ -216,7 +298,7 @@ test("zero-config discovery preserves scripts and applies documented framework f
     );
     const astro = discoverManifest(nested).services[0];
     assert.deepEqual(
-      astro.args,
+      astro?.args,
       ["run", "dev", "--host", "127.0.0.1"],
       "An existing PORT binding must not receive a duplicate Astro --port flag",
     );
@@ -234,7 +316,7 @@ test("application environments retain auth secrets and NODE_ENV; filtering is op
   };
   assert.deepEqual(safeEnvironment(source), source);
   assert.equal(
-    safeEnvironment(source, {}, { exclude: ["API_TOKEN"] }).API_TOKEN,
+    safeEnvironment(source, {}, { exclude: ["API_TOKEN"] })["API_TOKEN"],
     undefined,
   );
   assert.equal(source.API_TOKEN, "test-only");
@@ -242,7 +324,7 @@ test("application environments retain auth secrets and NODE_ENV; filtering is op
 test("service listeners release while ownership lock stays leased", async () => {
   const lock = createNetServer().listen(0, "127.0.0.1");
   await once(lock, "listening");
-  const port = lock.address().port;
+  const port = portOf(lock);
   await assert.rejects(reservePorts([port]), { code: "EADDRINUSE" });
   await close(lock);
   const release = await reservePorts([port, 0]);
@@ -254,8 +336,7 @@ test("service listeners release while ownership lock stays leased", async () => 
 });
 test("gateway preserves host, POST bytes, cookies, redirects, and websocket head bytes", async () => {
   const app = createServer(async (req, res) => {
-    let body = "";
-    for await (const chunk of req) body += chunk;
+    const body = await readBody(req);
     res
       .writeHead(302, {
         location: "/same-origin",
@@ -270,20 +351,20 @@ test("gateway preserves host, POST bytes, cookies, redirects, and websocket head
         }),
       );
   });
-  app.on("upgrade", (req, socket, head) => {
+  app.on("upgrade", (_req, socket, head) => {
     socket.write(
       "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n",
     );
     if (head.length) socket.write(head);
     socket.pipe(socket);
   });
-  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => app.listen(0, "127.0.0.1", resolve));
   const gateway = createGateway({
-    routes: new Map([["feature.localhost", app.address().port]]),
+    routes: new Map([["feature.localhost", portOf(app)]]),
     port: 0,
   });
   await gateway.listen();
-  const port = gateway.server.address().port;
+  const port = portOf(gateway.server);
   try {
     const result = await request(port, "/api/auth/test?state=opaque", {
       method: "POST",
@@ -291,7 +372,7 @@ test("gateway preserves host, POST bytes, cookies, redirects, and websocket head
       body: "test=body",
     });
     assert.equal(result.status, 302);
-    assert.equal(result.headers["set-cookie"].length, 2);
+    assert.equal(result.headers["set-cookie"]?.length, 2);
     assert.equal(result.headers.location, "/same-origin");
     assert.deepEqual(JSON.parse(result.body), {
       host: "feature.localhost:3000",
@@ -299,14 +380,14 @@ test("gateway preserves host, POST bytes, cookies, redirects, and websocket head
       body: "test=body",
       origin: "http://feature.localhost:3000",
     });
-    const output = await new Promise((accept, reject) => {
+    const output = await new Promise<string>((accept, reject) => {
       const socket = createConnection({ host: "127.0.0.1", port }, () =>
         socket.write(
           "GET /socket HTTP/1.1\r\nHost: feature.localhost:3000\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\nhead-byte",
         ),
       );
       let data = "";
-      socket.on("data", (chunk) => {
+      socket.on("data", (chunk: Buffer) => {
         data += chunk;
         if (data.includes("head-byte")) {
           socket.destroy();
@@ -328,7 +409,7 @@ test("gateway preserves host, POST bytes, cookies, redirects, and websocket head
 });
 
 test("gateway keeps absolute local redirects on the named worktree", async () => {
-  let gatewayPort;
+  let gatewayPort: number;
   const app = createServer((_req, res) =>
     res
       .writeHead(302, {
@@ -336,13 +417,13 @@ test("gateway keeps absolute local redirects on the named worktree", async () =>
       })
       .end(),
   );
-  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => app.listen(0, "127.0.0.1", resolve));
   const gateway = createGateway({
-    routes: new Map([["feature.localhost", app.address().port]]),
+    routes: new Map([["feature.localhost", portOf(app)]]),
     port: 0,
   });
   await gateway.listen();
-  const port = gateway.server.address().port;
+  const port = portOf(gateway.server);
   gatewayPort = port;
   try {
     const result = await request(port, "/auth/callback", {
@@ -361,20 +442,27 @@ test("gateway keeps absolute local redirects on the named worktree", async () =>
 
 test("gateway leaves external absolute redirects unchanged", async () => {
   const app = createServer((_req, res) =>
-    res.writeHead(302, { location: "https://accounts.google.com/o/oauth2/v2/auth" }).end(),
+    res
+      .writeHead(302, {
+        location: "https://accounts.google.com/o/oauth2/v2/auth",
+      })
+      .end(),
   );
-  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => app.listen(0, "127.0.0.1", resolve));
   const gateway = createGateway({
-    routes: new Map([["feature.localhost", app.address().port]]),
+    routes: new Map([["feature.localhost", portOf(app)]]),
     port: 0,
   });
   await gateway.listen();
-  const port = gateway.server.address().port;
+  const port = portOf(gateway.server);
   try {
     const result = await request(port, "/auth/sign-in", {
       headers: { host: `feature.localhost:${port}` },
     });
-    assert.equal(result.headers.location, "https://accounts.google.com/o/oauth2/v2/auth");
+    assert.equal(
+      result.headers.location,
+      "https://accounts.google.com/o/oauth2/v2/auth",
+    );
   } finally {
     await gateway.close();
     await close(app);
@@ -382,25 +470,27 @@ test("gateway leaves external absolute redirects unchanged", async () => {
 });
 
 test("local sign-in and sign-out redirects stay isolated per named worktree", async () => {
-  let gatewayPort;
+  let gatewayPort: number;
   const app = createServer((req, res) => {
-    const destination = req.url.startsWith("/sign-in")
+    const destination = req.url?.startsWith("/sign-in")
       ? "/after-sign-in?callbackUrl=%2F"
       : "/after-sign-out";
     res
-      .writeHead(303, { location: `http://localhost:${gatewayPort}${destination}` })
+      .writeHead(303, {
+        location: `http://localhost:${gatewayPort}${destination}`,
+      })
       .end();
   });
-  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => app.listen(0, "127.0.0.1", resolve));
   const gateway = createGateway({
     routes: new Map([
-      ["alpha.localhost", app.address().port],
-      ["beta.localhost", app.address().port],
+      ["alpha.localhost", portOf(app)],
+      ["beta.localhost", portOf(app)],
     ]),
     port: 0,
   });
   await gateway.listen();
-  const port = gateway.server.address().port;
+  const port = portOf(gateway.server);
   gatewayPort = port;
   try {
     for (const name of ["alpha", "beta"]) {
@@ -409,10 +499,10 @@ test("local sign-in and sign-out redirects stay isolated per named worktree", as
           headers: { host: `${name}.localhost:${port}` },
         });
         assert.equal(
-          new URL(result.headers.location).hostname,
+          new URL(result.headers.location ?? "").hostname,
           `${name}.localhost`,
         );
-        assert.equal(new URL(result.headers.location).port, String(port));
+        assert.equal(new URL(result.headers.location ?? "").port, String(port));
       }
     }
   } finally {
@@ -427,10 +517,10 @@ test("control registration handles fragmentation and rejects foreign services an
       setTimeout(() => socket.end('"ready":true,"name":"feature"}\n'), 20);
     });
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const lease = await connectShared({
-      port: server.address().port,
+      port: portOf(server),
       request: {},
     });
     assert.equal(lease.name, "feature");
@@ -441,10 +531,10 @@ test("control registration handles fragmentation and rejects foreign services an
   const foreign = createNetServer((socket) =>
     socket.once("data", () => socket.end('{"ready":true}\n')),
   );
-  await new Promise((resolve) => foreign.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => foreign.listen(0, "127.0.0.1", resolve));
   try {
     await assert.rejects(
-      connectShared({ port: foreign.address().port, request: {} }),
+      connectShared({ port: portOf(foreign), request: {} }),
       /another application/,
     );
   } finally {
@@ -453,10 +543,10 @@ test("control registration handles fragmentation and rejects foreign services an
 });
 test("control registration cancels without leaking the peer socket", async () => {
   const server = createNetServer((socket) => socket.resume());
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const controller = new AbortController();
   const lease = connectShared({
-    port: server.address().port,
+    port: portOf(server),
     request: {},
     signal: controller.signal,
   });
@@ -487,10 +577,10 @@ test("control framing preserves Unicode split across TCP chunks", async () => {
       setTimeout(() => socket.end(payload.subarray(split)), 20);
     });
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const lease = await connectShared({
-      port: server.address().port,
+      port: portOf(server),
       request: {},
     });
     assert.equal(lease.name, "feature-世界");
@@ -501,90 +591,204 @@ test("control framing preserves Unicode split across TCP chunks", async () => {
 });
 
 test("literal Portless wrappers unwrap without running scripts or changing files", async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'benzo-portless-'));
+  const directory = await mkdtemp(join(tmpdir(), "benzo-portless-"));
   try {
-    for (const script of ['portless run vite', 'portless run -- vite --strictPort', 'portless app next dev --turbopack', 'portless run --name app next dev']) {
-      const source = JSON.stringify({scripts:{dev:script}});
-      await writeFile(join(directory, 'package.json'), source);
+    for (const script of [
+      "portless run vite",
+      "portless run -- vite --strictPort",
+      "portless app next dev --turbopack",
+      "portless run --name app next dev",
+    ]) {
+      const source = JSON.stringify({ scripts: { dev: script } });
+      await writeFile(join(directory, "package.json"), source);
       const config = discoverManifest(directory);
-      assert.equal(config.discovery, 'portless-literal');
-      assert.ok(['vite','next'].includes(config.services[0].command));
-      assert.ok(config.services[0].args.includes('{port}'));
-      assert.equal(await import('node:fs/promises').then(fs => fs.readFile(join(directory,'package.json'),'utf8')), source);
-      assert.match(config.warnings[0], /HTTP/);
+      assert.equal(config.discovery, "portless-literal");
+      assert.ok(["vite", "next"].includes(config.services[0]?.command ?? ""));
+      assert.ok(config.services[0]?.args?.includes("{port}"));
+      assert.equal(
+        await import("node:fs/promises").then((fs) =>
+          fs.readFile(join(directory, "package.json"), "utf8"),
+        ),
+        source,
+      );
+      assert.match(config.warnings?.[0] ?? "", /HTTP/);
     }
-    for (const dev of ['portless run next dev\nnode setup.js', 'portless run vite\r\nnode setup.js', 'portless run vite\rnode setup.js', 'portless run --tls vite', 'portless run vite --port 5173', 'portless run vite && echo changed', 'portless run vite $ARGS', 'portless run node custom.js', 'portless run vite build', 'portless proxy start', 'portless app next build']) {
-      await writeFile(join(directory,'package.json'), JSON.stringify({scripts:{dev}}));
+    for (const dev of [
+      "portless run next dev\nnode setup.js",
+      "portless run vite\r\nnode setup.js",
+      "portless run vite\rnode setup.js",
+      "portless run --tls vite",
+      "portless run vite --port 5173",
+      "portless run vite && echo changed",
+      "portless run vite $ARGS",
+      "portless run node custom.js",
+      "portless run vite build",
+      "portless proxy start",
+      "portless app next build",
+    ]) {
+      await writeFile(
+        join(directory, "package.json"),
+        JSON.stringify({ scripts: { dev } }),
+      );
       assert.throws(() => discoverManifest(directory), /Unsupported Portless/);
     }
-    await writeFile(join(directory,'package.json'), JSON.stringify({scripts:{dev:'portless run vite',predev:'node setup.js'}}));
+    await writeFile(
+      join(directory, "package.json"),
+      JSON.stringify({
+        scripts: { dev: "portless run vite", predev: "node setup.js" },
+      }),
+    );
     assert.throws(() => discoverManifest(directory), /Unsupported Portless/);
-  } finally { await rm(directory,{recursive:true,force:true}); }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
-
 
 test("launch provenance distinguishes explicit defaults, discovery and derived control ports", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "benzo-provenance-"));
   const options = { env: {} };
   try {
-    await writeFile(join(cwd, "package.json"), JSON.stringify({
-      scripts: {dev: "node server.cjs"},
-      benzo: {gateway: {port: 3000}, services: [{name: "web", command: "node", ready: {timeout: 120000}}]},
-    }));
+    await writeFile(
+      join(cwd, "package.json"),
+      JSON.stringify({
+        scripts: { dev: "node server.cjs" },
+        benzo: {
+          gateway: { port: 3000 },
+          services: [
+            { name: "web", command: "node", ready: { timeout: 120000 } },
+          ],
+        },
+      }),
+    );
     let loaded = loadManifestWithSource(cwd);
     let provenance = planProvenance(loaded.input, loaded.source, options);
     assert.equal(provenance.gateway.port, "package");
     assert.equal(provenance.gateway.controlPort, "derived:gateway.port");
-    assert.equal(provenance.services[0].ready.timeout, "package");
-    assert.equal(provenance.services[0].ready.type, "default");
-    loaded = loadManifestWithSource(cwd, undefined, {command: "python", args: ["-m", "http.server", "{port}"]});
+    assert.equal(provenance.services[0]?.ready["timeout"], "package");
+    assert.equal(provenance.services[0]?.ready["type"], "default");
+    loaded = loadManifestWithSource(cwd, undefined, {
+      command: "python",
+      args: ["-m", "http.server", "{port}"],
+    });
     provenance = planProvenance(loaded.input, loaded.source, options);
-    assert.equal(provenance.services[0].command, "command");
+    assert.equal(provenance.services[0]?.command, "command");
     assert.equal(provenance.gateway.port, "default");
-    await writeFile(join(cwd, "external.json"), JSON.stringify({name: "configured", gateway: {port: 4321, controlPort: 4320}, services: [{name: "api", command: "node"}]}));
+    await writeFile(
+      join(cwd, "external.json"),
+      JSON.stringify({
+        name: "configured",
+        gateway: { port: 4321, controlPort: 4320 },
+        services: [{ name: "api", command: "node" }],
+      }),
+    );
     loaded = loadManifestWithSource(cwd, "external.json");
     provenance = planProvenance(loaded.input, loaded.source, options);
     assert.equal(provenance.requestedName, "explicit-manifest");
     assert.equal(provenance.gateway.controlPort, "explicit-manifest");
     assert.equal(loaded.config.gateway.controlPort, 4320);
   } finally {
-    await rm(cwd, {recursive: true, force: true});
+    await rm(cwd, { recursive: true, force: true });
   }
 });
 
-
 test("environment provenance matches exclusion then runtime then configured override order without values", () => {
-  const inherited = {KEEP: "inherited-secret", DROP: "excluded-secret", RESTORE: "old-secret", PORT: "9000", PATH: "/private/path"};
-  const input = {services: [{name: "web", command: "secret-command", excludeEnv: ["DROP", "RESTORE", "PORT"], env: {RESTORE: "configured-secret", PORT: "1234", CUSTOM: "custom-secret"}}]};
-  const options = {env: {PORT: "5678", CLI: "cli-secret"}};
-  const plan = planProvenance(input, {kind: "explicit-manifest"}, options, inherited);
-  assert.deepEqual(plan.services[0].env, {
-    BENZO_NAME: "runtime-allocation", BENZO_ORIGIN: "runtime-allocation",
-    CLI: "--env", CUSTOM: "explicit-manifest", KEEP: "inherited-process",
-    PATH: "inherited-process", PORT: "--env", RESTORE: "explicit-manifest",
+  const inherited = {
+    KEEP: "inherited-secret",
+    DROP: "excluded-secret",
+    RESTORE: "old-secret",
+    PORT: "9000",
+    PATH: "/private/path",
+  };
+  const input = {
+    services: [
+      {
+        name: "web",
+        command: "secret-command",
+        excludeEnv: ["DROP", "RESTORE", "PORT"],
+        env: {
+          RESTORE: "configured-secret",
+          PORT: "1234",
+          CUSTOM: "custom-secret",
+        },
+      },
+    ],
+  };
+  const options = { env: { PORT: "5678", CLI: "cli-secret" } };
+  const plan = planProvenance(
+    input,
+    { kind: "explicit-manifest" },
+    options,
+    inherited,
+  );
+  assert.deepEqual(plan.services[0]?.env, {
+    BENZO_NAME: "runtime-allocation",
+    BENZO_ORIGIN: "runtime-allocation",
+    CLI: "--env",
+    CUSTOM: "explicit-manifest",
+    KEEP: "inherited-process",
+    PATH: "inherited-process",
+    PORT: "--env",
+    RESTORE: "explicit-manifest",
   });
-  assert.deepEqual(plan.services[0].excludedInheritedKeys, ["DROP", "PORT", "RESTORE"]);
+  assert.deepEqual(plan.services[0]?.excludedInheritedKeys, [
+    "DROP",
+    "PORT",
+    "RESTORE",
+  ]);
   assert.equal(JSON.stringify(plan).includes("secret"), false);
   assert.equal(JSON.stringify(plan).includes("/private/path"), false);
-  assert.deepEqual(inherited, {KEEP: "inherited-secret", DROP: "excluded-secret", RESTORE: "old-secret", PORT: "9000", PATH: "/private/path"});
-  const empty = planProvenance({services: [{name: "web", command: "node"}]}, {kind: "command"}, {env: {}}, {});
-  assert.equal(empty.services[0].env.PORT, "runtime-allocation");
+  assert.deepEqual(inherited, {
+    KEEP: "inherited-secret",
+    DROP: "excluded-secret",
+    RESTORE: "old-secret",
+    PORT: "9000",
+    PATH: "/private/path",
+  });
+  const empty = planProvenance(
+    { services: [{ name: "web", command: "node" }] },
+    { kind: "command" },
+    { env: {} },
+    {},
+  );
+  assert.equal(empty.services[0]?.env["PORT"], "runtime-allocation");
 });
 
 test("readiness and auth enums reject coercible arrays", () => {
-  for (const ready of [{type: ["tcp"]}, {type: ["http"]}])
-    assert.throws(() => normalizeManifest({ services: [{name: "web", command: "node", ready}] }));
-  for (const auth of [{mode: ["relay"]}, {mode: ["callback"]}])
-    assert.throws(() => normalizeManifest({ services: [{name: "web", command: "node"}], auth }));
+  for (const ready of [{ type: ["tcp"] }, { type: ["http"] }])
+    assert.throws(() =>
+      normalizeInvalid({ services: [{ name: "web", command: "node", ready }] }),
+    );
+  for (const auth of [{ mode: ["relay"] }, { mode: ["callback"] }])
+    assert.throws(() =>
+      normalizeInvalid({ services: [{ name: "web", command: "node" }], auth }),
+    );
 });
 
 test("control response rejects malformed declared fields", async () => {
-  for (const fields of [{name: []}, {name: "feature", transport: 42}, {name: "feature", transport: null}, {name: "feature", error: 42}, {name: "feature", error: null}]) {
-    const server = createNetServer(socket => socket.once("data", () => socket.end(
-      JSON.stringify({protocol: PROTOCOL, ready: true, ...fields}) + "\n"
-    )));
-    await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
-    try { await assert.rejects(connectShared({port: server.address().port}), /Invalid Benzo gateway response/); }
-    finally { await close(server); }
+  for (const fields of [
+    { name: [] },
+    { name: "feature", transport: 42 },
+    { name: "feature", transport: null },
+    { name: "feature", error: 42 },
+    { name: "feature", error: null },
+  ]) {
+    const server = createNetServer((socket) =>
+      socket.once("data", () =>
+        socket.end(
+          JSON.stringify({ protocol: PROTOCOL, ready: true, ...fields }) + "\n",
+        ),
+      ),
+    );
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    try {
+      await assert.rejects(
+        connectShared({ port: portOf(server) }),
+        /Invalid Benzo gateway response/,
+      );
+    } finally {
+      await close(server);
+    }
   }
 });

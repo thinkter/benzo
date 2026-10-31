@@ -1,17 +1,47 @@
+import type {
+  Server,
+  IncomingHttpHeaders,
+  OutgoingHttpHeaders,
+  IncomingMessage,
+} from "node:http";
+import type { CallbackEntry } from "#production/gateway";
+interface Response {
+  status: number | undefined;
+  headers: IncomingHttpHeaders;
+  body: string;
+}
+function portOf(server: Server): number {
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  return address.port;
+}
+function readBody(req: IncomingMessage): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.once("end", () => resolve(Buffer.concat(chunks)));
+    req.once("error", reject);
+  });
+}
 import test from "node:test";
-import { effectivePort } from "../dist/origin.js";
+import { effectivePort } from "#production/origin";
 import assert from "node:assert/strict";
 import { createServer, request as httpRequest } from "node:http";
-import { createGateway } from "../dist/core.js";
-const listen = (server) =>
-  new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const close = (server) =>
-  new Promise((resolve) => {
-    server.close(resolve);
+import { createGateway } from "#production/core";
+const listen = (server: Server) =>
+  new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+const close = (server: Server) =>
+  new Promise<void>((resolve) => {
+    server.close(() => resolve());
     server.closeAllConnections?.();
   });
-function request(port, path, host = "feature.localhost:3000", headers = {}) {
-  return new Promise((accept, reject) => {
+function request(
+  port: number,
+  path: string,
+  host = "feature.localhost:3000",
+  headers: OutgoingHttpHeaders = {},
+) {
+  return new Promise<Response>((accept, reject) => {
     const req = httpRequest(
       {
         host: "127.0.0.1",
@@ -21,7 +51,7 @@ function request(port, path, host = "feature.localhost:3000", headers = {}) {
       },
       (response) => {
         let body = "";
-        response.on("data", (chunk) => (body += chunk));
+        response.on("data", (chunk: Buffer) => (body += chunk.toString()));
         response.on("end", () =>
           accept({
             status: response.statusCode,
@@ -36,8 +66,14 @@ function request(port, path, host = "feature.localhost:3000", headers = {}) {
   });
 }
 
-function postForm(port, path, body, headers = {}, host = `localhost:${port}`) {
-  return new Promise((resolve, reject) => {
+function postForm(
+  port: number,
+  path: string,
+  body: string | Buffer,
+  headers: OutgoingHttpHeaders = {},
+  host = `localhost:${port}`,
+) {
+  return new Promise<Response>((resolve, reject) => {
     const req = httpRequest(
       {
         host: "127.0.0.1",
@@ -53,7 +89,7 @@ function postForm(port, path, body, headers = {}, host = `localhost:${port}`) {
       },
       (res) => {
         let bytes = "";
-        res.on("data", (chunk) => (bytes += chunk));
+        res.on("data", (chunk: Buffer) => (bytes += chunk.toString()));
         res.on("end", () =>
           resolve({
             status: res.statusCode,
@@ -69,13 +105,16 @@ function postForm(port, path, body, headers = {}, host = `localhost:${port}`) {
 }
 
 test("form_post callbacks require the observed method, unique state and active owner while preserving replay bytes", async () => {
-  let port;
-  const callbacks = new Map();
+  let port: number;
+  const callbacks = new Map<string, CallbackEntry>();
   const app = createServer(async (req, res) => {
-    if (req.url.startsWith("/start")) {
-      const input = new URL(req.url, "http://app");
+    if (req.url?.startsWith("/start")) {
+      const input = new URL(req.url ?? "/", "http://app");
       const authorization = new URL("https://provider.invalid/authorize");
-      authorization.searchParams.set("state", input.searchParams.get("state"));
+      authorization.searchParams.set(
+        "state",
+        input.searchParams.get("state") ?? "",
+      );
       authorization.searchParams.set(
         "redirect_uri",
         `http://localhost:${port}${input.searchParams.get("callback") ?? "/callback"}`,
@@ -86,16 +125,14 @@ test("form_post callbacks require the observed method, unique state and active o
       );
       return res.writeHead(302, { location: authorization.href }).end();
     }
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    res.end(Buffer.concat(chunks));
+    return res.end(await readBody(req));
   });
   await listen(app);
-  const routes = new Map([["feature.localhost", { port: app.address().port }]]);
+  const routes = new Map([["feature.localhost", { port: portOf(app) }]]);
   const gateway = createGateway({ port: 0, routes, callbackStore: callbacks });
   await gateway.listen();
-  port = gateway.server.address().port;
-  const start = (state, suffix = "") =>
+  port = portOf(gateway.server);
+  const start = (state: string, suffix = "") =>
     request(
       port,
       `/start?state=${state}${suffix}`,
@@ -145,7 +182,7 @@ test("form_post callbacks require the observed method, unique state and active o
       307,
     );
     await start("replace");
-    routes.set("feature.localhost", { port: app.address().port });
+    routes.set("feature.localhost", { port: portOf(app) });
     assert.equal(
       (await postForm(port, "/callback", "state=replace")).status,
       409,
@@ -182,7 +219,7 @@ test(
   "form_post rejects ambiguous, malformed, encoded and oversized bodies without consuming valid state",
   { timeout: 10000 },
   async () => {
-    let port;
+    let port: number;
     const app = createServer((_req, res) => {
       const authorization = new URL("https://provider.invalid/authorize");
       authorization.searchParams.set("state", "valid");
@@ -196,10 +233,10 @@ test(
     await listen(app);
     const gateway = createGateway({
       port: 0,
-      routes: new Map([["feature.localhost", app.address().port]]),
+      routes: new Map([["feature.localhost", portOf(app)]]),
     });
     await gateway.listen();
-    port = gateway.server.address().port;
+    port = portOf(gateway.server);
     try {
       await request(port, "/", `feature.localhost:${port}`);
       for (const [body, headers, expected, path = "/callback"] of [
@@ -236,32 +273,34 @@ test(
           { "transfer-encoding": "chunked" },
           413,
         ],
-      ])
+      ] satisfies [string | Buffer, OutgoingHttpHeaders, number, string?][])
         assert.equal(
           (await postForm(port, path, body, headers)).status,
           expected,
         );
       // A stalled sender gets a bounded deadline and cannot reserve the state.
-      const timeout = await new Promise((resolve, reject) => {
-        const req = httpRequest(
-          {
-            host: "127.0.0.1",
-            port,
-            path: "/callback",
-            method: "POST",
-            headers: {
-              host: `localhost:${port}`,
-              "content-type": "application/x-www-form-urlencoded",
+      const timeout = await new Promise<number | undefined>(
+        (resolve, reject) => {
+          const req = httpRequest(
+            {
+              host: "127.0.0.1",
+              port,
+              path: "/callback",
+              method: "POST",
+              headers: {
+                host: `localhost:${port}`,
+                "content-type": "application/x-www-form-urlencoded",
+              },
             },
-          },
-          (res) => {
-            res.resume();
-            res.on("end", () => resolve(res.statusCode));
-          },
-        );
-        req.on("error", reject);
-        req.write("state=valid");
-      });
+            (res) => {
+              res.resume();
+              res.on("end", () => resolve(res.statusCode));
+            },
+          );
+          req.on("error", reject);
+          req.write("state=valid");
+        },
+      );
       assert.equal(timeout, 408);
       assert.equal(
         (
@@ -280,7 +319,11 @@ test(
 );
 
 test("opt-in upstream adapter preserves callback headers and rejects unknown hosts", async () => {
-  const calls = [];
+  const calls: {
+    url: string | undefined;
+    cookie: string | undefined;
+    host: string | string[] | undefined;
+  }[] = [];
   const app = createServer((req, res) => {
     calls.push({
       url: req.url,
@@ -300,25 +343,25 @@ test("opt-in upstream adapter preserves callback headers and rejects unknown hos
     routes: new Map([["feature.localhost", 1]]),
     auth: {
       mode: "callback",
-      upstream: `http://127.0.0.1:${app.address().port}`,
+      upstream: `http://127.0.0.1:${portOf(app)}`,
       pathPrefix: "/api/auth/",
     },
   });
   await gateway.listen();
   try {
     const callback = await request(
-      gateway.server.address().port,
+      portOf(gateway.server),
       "/api/auth/callback/google?state=test",
       undefined,
       { cookie: "state=test" },
     );
     assert.equal(callback.status, 302);
-    assert.equal(callback.headers["set-cookie"].length, 2);
-    assert.equal(calls[0].host, "feature.localhost:3000");
+    assert.equal(callback.headers["set-cookie"]?.length, 2);
+    assert.equal(calls[0]?.host, "feature.localhost:3000");
     assert.equal(
       (
         await request(
-          gateway.server.address().port,
+          portOf(gateway.server),
           "/api/auth/callback/google",
           "unknown.localhost",
         )
@@ -328,7 +371,7 @@ test("opt-in upstream adapter preserves callback headers and rejects unknown hos
     assert.equal(
       (
         await request(
-          gateway.server.address().port,
+          portOf(gateway.server),
           "/api/auth/get-session",
           "localhost",
         )
@@ -342,10 +385,10 @@ test("opt-in upstream adapter preserves callback headers and rejects unknown hos
 });
 
 test("default callback relay returns each state to its worktree, once, without changing redirect_uri", async () => {
-  let callbackOrigin;
-  const observed = [];
+  let callbackOrigin: string;
+  const observed: (string | null)[] = [];
   const app = createServer((req, res) => {
-    const state = req.url.includes("second") ? "state-second" : "state-first";
+    const state = req.url?.includes("second") ? "state-second" : "state-first";
     const url = new URL("https://provider.invalid/authorize");
     url.searchParams.set("state", state);
     url.searchParams.set(
@@ -362,12 +405,12 @@ test("default callback relay returns each state to its worktree, once, without c
   });
   await listen(app);
   const routes = new Map([
-    ["first.localhost", app.address().port],
-    ["second.localhost", app.address().port],
+    ["first.localhost", portOf(app)],
+    ["second.localhost", portOf(app)],
   ]);
   const gateway = createGateway({ routes, port: 0 });
   await gateway.listen();
-  const port = gateway.server.address().port;
+  const port = portOf(gateway.server);
   callbackOrigin = `http://localhost:${port}`;
   try {
     await request(port, "/api/auth/sign-in", `first.localhost:${port}`);
@@ -401,7 +444,7 @@ test("default callback relay returns each state to its worktree, once, without c
       "/api/auth/callback/provider?state=state-second",
       `localhost:${port}`,
     );
-    assert.match(second.headers.location, /second\.localhost/);
+    assert.match(second.headers.location ?? "", /second\.localhost/);
     assert.equal(
       (await request(port, "/wrong?state=unknown", `localhost:${port}`)).status,
       409,
@@ -413,8 +456,8 @@ test("default callback relay returns each state to its worktree, once, without c
 });
 
 test("default JSON authorization response stays byte-identical while callback affinity is observed", async () => {
-  let callbackOrigin;
-  let original;
+  let callbackOrigin: string;
+  let original: string | undefined;
   const app = createServer((_req, res) => {
     const url = new URL("https://provider.invalid/authorize");
     url.searchParams.set("state", "json-opaque-state");
@@ -428,10 +471,10 @@ test("default JSON authorization response stays byte-identical while callback af
   await listen(app);
   const gateway = createGateway({
     port: 0,
-    routes: new Map([["feature.localhost", app.address().port]]),
+    routes: new Map([["feature.localhost", portOf(app)]]),
   });
   await gateway.listen();
-  const port = gateway.server.address().port;
+  const port = portOf(gateway.server);
   callbackOrigin = `http://localhost:${port}`;
   try {
     const result = await request(
@@ -457,7 +500,7 @@ test("default JSON authorization response stays byte-identical while callback af
 });
 
 test("standard auth JSON navigation envelope is observed with content-type parameters", async () => {
-  let callbackOrigin;
+  let callbackOrigin: string;
   const app = createServer((_req, res) => {
     const url = new URL("https://provider.invalid/authorize");
     url.searchParams.set("state", "standard-json-state");
@@ -470,10 +513,10 @@ test("standard auth JSON navigation envelope is observed with content-type param
   await listen(app);
   const gateway = createGateway({
     port: 0,
-    routes: new Map([["feature.localhost", app.address().port]]),
+    routes: new Map([["feature.localhost", portOf(app)]]),
   });
   await gateway.listen();
-  const port = gateway.server.address().port;
+  const port = portOf(gateway.server);
   callbackOrigin = `http://localhost:${port}`;
   try {
     const response = await request(
@@ -502,8 +545,8 @@ test("standard auth JSON navigation envelope is observed with content-type param
 });
 
 test("relay refuses ambiguous states, expired states and wrong callback paths", async () => {
-  let fixed;
-  const callbacks = new Map();
+  let fixed: string;
+  const callbacks = new Map<string, CallbackEntry>();
   const app = createServer((_req, res) => {
     const url = new URL("https://provider.invalid/authorize");
     url.searchParams.set("state", "same-state");
@@ -515,12 +558,12 @@ test("relay refuses ambiguous states, expired states and wrong callback paths", 
     port: 0,
     callbackStore: callbacks,
     routes: new Map([
-      ["one.localhost", { port: app.address().port, auth: { mode: "relay" } }],
-      ["two.localhost", { port: app.address().port, auth: { mode: "relay" } }],
+      ["one.localhost", { port: portOf(app), auth: { mode: "relay" } }],
+      ["two.localhost", { port: portOf(app), auth: { mode: "relay" } }],
     ]),
   });
   await gateway.listen();
-  const port = gateway.server.address().port;
+  const port = portOf(gateway.server);
   fixed = `http://localhost:${port}/api/auth/callback/provider`;
   try {
     await request(port, "/api/auth/sign-in", `one.localhost:${port}`);
@@ -560,7 +603,7 @@ test("relay refuses ambiguous states, expired states and wrong callback paths", 
 });
 
 test("callback affinity rejects replacement owners, including reused ports", async () => {
-  let fixed;
+  let fixed: string;
   const app = createServer((_req, res) => {
     const url = new URL("https://provider.invalid/authorize");
     url.searchParams.set("state", "owner-test");
@@ -568,15 +611,15 @@ test("callback affinity rejects replacement owners, including reused ports", asy
     res.writeHead(302, { location: url.href }).end();
   });
   await listen(app);
-  const routes = new Map([["feature.localhost", app.address().port]]);
+  const routes = new Map([["feature.localhost", portOf(app)]]);
   const gateway = createGateway({ routes, port: 0 });
   await gateway.listen();
-  const port = gateway.server.address().port;
+  const port = portOf(gateway.server);
   fixed = `http://localhost:${port}/api/auth/callback/provider`;
   try {
     await request(port, "/api/auth/signin", `feature.localhost:${port}`);
     routes.delete("feature.localhost");
-    routes.set("feature.localhost", app.address().port);
+    routes.set("feature.localhost", portOf(app));
     const result = await request(
       port,
       "/api/auth/callback/provider?state=owner-test&code=private",
@@ -602,18 +645,18 @@ test("callback affinity rejects replacement owners, including reused ports", asy
 });
 
 test("redirect translation preserves HTTPS, userinfo, foreign ports and response bodies", async () => {
-  let location;
+  let location: string;
   const body = 'fetch("http://localhost:3000/private")';
   const app = createServer((_req, res) =>
     res.writeHead(302, { location }).end(body),
   );
   await listen(app);
   const gateway = createGateway({
-    routes: new Map([["feature.localhost", app.address().port]]),
+    routes: new Map([["feature.localhost", portOf(app)]]),
     port: 0,
   });
   await gateway.listen();
-  const port = gateway.server.address().port;
+  const port = portOf(gateway.server);
   try {
     for (location of [
       `https://localhost:${port}/secure`,
@@ -634,14 +677,14 @@ test("redirect translation preserves HTTPS, userinfo, foreign ports and response
 });
 
 test("Refresh redirects isolate worktrees without rewriting opaque content or unsupported destinations", async () => {
-  let refresh;
+  let refresh: string | string[];
   const body =
     '<meta http-equiv="refresh" content="0;url=http://localhost:3000/private">';
   const cookie = "session=opaque; Path=/; HttpOnly; SameSite=Lax";
   const app = createServer((_req, res) =>
     res
+      .setHeader("refresh", refresh)
       .writeHead(200, {
-        refresh,
         "set-cookie": cookie,
         "content-type": "text/html",
         "content-length": Buffer.byteLength(body),
@@ -651,13 +694,13 @@ test("Refresh redirects isolate worktrees without rewriting opaque content or un
   await listen(app);
   const gateway = createGateway({
     routes: new Map([
-      ["first.localhost", app.address().port],
-      ["second.localhost", app.address().port],
+      ["first.localhost", portOf(app)],
+      ["second.localhost", portOf(app)],
     ]),
     port: 0,
   });
   await gateway.listen();
-  const port = gateway.server.address().port;
+  const port = portOf(gateway.server);
   const local = `http://localhost:${port}/logout?next=%2Fhome#done`;
   try {
     for (const hostname of ["first.localhost", "second.localhost"]) {
@@ -678,10 +721,10 @@ test("Refresh redirects isolate worktrees without rewriting opaque content or un
           `0;url=http://127.0.0.1:${port}/`,
           `0;url=http://${hostname}:${port}/`,
         ],
-      ]) {
+      ] satisfies [string, string][]) {
         refresh = source;
         const result = await request(port, "/", `${hostname}:${port}`);
-        assert.equal(result.headers.refresh, expected);
+        assert.equal(result.headers["refresh"], expected);
         assert.equal(result.body, body);
         assert.equal(
           Number(result.headers["content-length"]),
@@ -706,7 +749,7 @@ test("Refresh redirects isolate worktrees without rewriting opaque content or un
     ]) {
       const result = await request(port, "/", `first.localhost:${port}`);
       assert.equal(
-        result.headers.refresh,
+        result.headers["refresh"],
         Array.isArray(refresh) ? refresh.join(", ") : refresh,
       );
       assert.equal(result.body, body);
@@ -718,9 +761,9 @@ test("Refresh redirects isolate worktrees without rewriting opaque content or un
 });
 
 test("late authorization response cannot create affinity for a replacement route", async () => {
-  let release;
-  let arrived;
-  const arrival = new Promise((resolve) => {
+  let release: ((fixed: string) => void) | undefined;
+  let arrived: () => void = () => {};
+  const arrival = new Promise<void>((resolve) => {
     arrived = resolve;
   });
   const app = createServer((_req, res) => {
@@ -733,11 +776,11 @@ test("late authorization response cannot create affinity for a replacement route
     arrived();
   });
   await listen(app);
-  const routes = new Map([["feature.localhost", { port: app.address().port }]]);
-  const callbacks = new Map();
+  const routes = new Map([["feature.localhost", { port: portOf(app) }]]);
+  const callbacks = new Map<string, CallbackEntry>();
   const gateway = createGateway({ routes, callbackStore: callbacks, port: 0 });
   await gateway.listen();
-  const port = gateway.server.address().port;
+  const port = portOf(gateway.server);
   try {
     const pending = request(
       port,
@@ -745,7 +788,8 @@ test("late authorization response cannot create affinity for a replacement route
       `feature.localhost:${port}`,
     );
     await arrival;
-    routes.set("feature.localhost", { port: app.address().port });
+    routes.set("feature.localhost", { port: portOf(app) });
+    assert.ok(release);
     release(`http://localhost:${port}/callback`);
     await pending;
     assert.equal(callbacks.size, 0);
@@ -761,7 +805,7 @@ test("late authorization response cannot create affinity for a replacement route
 });
 
 test("IPv4 sign-in shares callback affinity with IPv6 and rejects expired recycled ownership", async () => {
-  let fixed;
+  let fixed: string;
   let state = "dual-state";
   const app = createServer((_req, res) => {
     const url = new URL("https://provider.invalid/authorize");
@@ -770,11 +814,11 @@ test("IPv4 sign-in shares callback affinity with IPv6 and rejects expired recycl
     res.writeHead(302, { location: url.href }).end();
   });
   await listen(app);
-  const routes = new Map([["feature.localhost", { port: app.address().port }]]);
-  const callbacks = new Map();
+  const routes = new Map([["feature.localhost", { port: portOf(app) }]]);
+  const callbacks = new Map<string, CallbackEntry>();
   const v4 = createGateway({ routes, callbackStore: callbacks, port: 0 });
   await v4.listen();
-  const port = v4.server.address().port;
+  const port = portOf(v4.server);
   const v6 = createGateway({
     routes,
     callbackStore: callbacks,
@@ -785,7 +829,7 @@ test("IPv4 sign-in shares callback affinity with IPv6 and rejects expired recycl
     await v6.listen();
     fixed = `http://localhost:${port}/callback`;
     await request(port, "/api/auth/signin", `feature.localhost:${port}`);
-    const status = await new Promise((resolve, reject) => {
+    const status = await new Promise<number | undefined>((resolve, reject) => {
       const req = httpRequest(
         {
           hostname: "::1",
@@ -824,7 +868,7 @@ test("IPv4 sign-in shares callback affinity with IPv6 and rejects expired recycl
       ).status,
       409,
     );
-    routes.set("feature.localhost", { port: app.address().port });
+    routes.set("feature.localhost", { port: portOf(app) });
     await request(port, "/api/auth/signin", `feature.localhost:${port}`);
     assert.equal(
       (
@@ -844,20 +888,25 @@ test("IPv4 sign-in shares callback affinity with IPv6 and rejects expired recycl
 });
 
 test("port 80 redirects and OAuth callbacks use the effective default port", async (t) => {
-  let destination;
+  let destination: string;
   const app = createServer((_req, res) =>
     res.writeHead(302, { location: destination }).end(),
   );
   await listen(app);
   const gateway = createGateway({
     port: 80,
-    routes: new Map([["feature.localhost", app.address().port]]),
+    routes: new Map([["feature.localhost", portOf(app)]]),
   });
   try {
     try {
       await gateway.listen();
     } catch (error) {
-      if (["EADDRINUSE", "EACCES"].includes(error.code)) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        typeof error.code === "string" &&
+        ["EADDRINUSE", "EACCES"].includes(error.code)
+      ) {
         t.skip(`Port 80 unavailable: ${error.code}`);
         return;
       }
@@ -885,7 +934,7 @@ test("port 80 redirects and OAuth callbacks use the effective default port", asy
       );
       assert.equal(callback.status, 307);
       assert.match(
-        callback.headers.location,
+        callback.headers.location ?? "",
         /^http:\/\/feature\.localhost\/callback/,
       );
     }

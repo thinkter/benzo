@@ -13,14 +13,14 @@
       "problem": "Blanket environment filtering removed existing auth settings and NODE_ENV from unchanged applications.",
       "status": "fixed",
       "fix": "Preserve inherited environment; allow explicit per-service excludeEnv; never serialize inherited values to state.",
-      "regression": "test/core.test.js: application environments; test/runtime.test.js: environment preservation"
+      "regression": "test/core.test.ts: application environments; test/runtime.test.js: environment preservation"
     },
     {
       "id": "BENZO-003",
       "problem": "Fragmented registration, duplicate checkouts, stale PID state and idle cleanup were unreliable.",
       "status": "fixed",
       "fix": "Bounded framed/versioned protocol, authenticated leases, canonical worktree identity, supervisor stop and cancelled idle shutdown.",
-      "regression": "test/core.test.js: control registration; test/runtime.test.js: parallel and simultaneous starts"
+      "regression": "test/core.test.ts: control registration; test/runtime.test.js: parallel and simultaneous starts"
     },
     {
       "id": "BENZO-004",
@@ -42,14 +42,14 @@
       "problem": "A fixed localhost OAuth callback loses the initiating worktree and its host-only state/PKCE cookies.",
       "status": "fixed-for-tested-query-flow",
       "fix": "Opt-in in-memory state relay returns observed fixed callbacks to their named origin without changing provider redirect_uri.",
-      "regression": "test/auth.test.js; test/browser/auth.test.js",
+      "regression": "test/auth.test.ts; test/browser/auth.test.ts",
       "limitation": "Tested with Better Auth and a local S256 PKCE provider; form_post, hidden/compressed authorization URLs and external providers remain unsupported or untested."
     },
     {
       "id": "BENZO-007",
       "problem": "An unchanged auth configuration pinned to localhost rejects a named worktree origin.",
       "status": "known-compatibility-failure",
-      "regression": "test/better-auth.test.js: fixed auth baseURL incompatibility",
+      "regression": "test/better-auth.test.ts: fixed auth baseURL incompatibility",
       "limitation": "The relay cannot override an application's explicit trust policy. Benzo preserves the 403 instead of disabling origin/CSRF validation."
     },
     {
@@ -85,21 +85,21 @@
       "problem": "Long persisted collision labels could lose their numeric suffix, and byte-fragmented Unicode control messages could corrupt checkout names.",
       "status": "fixed",
       "fix": "Preserve up to one DNS label for an existing preferred name and decode TCP control streams as UTF-8.",
-      "regression": "test/core.test.js: long collision names and Unicode framing"
+      "regression": "test/core.test.ts: long collision names and Unicode framing"
     },
     {
       "id": "BENZO-013",
       "problem": "Remix vite:dev was treated as an unknown script, losing explicit host/strict-port forwarding.",
       "status": "fixed",
       "fix": "Detect Remix Vite development scripts and preserve the original command with Vite-supported flags.",
-      "regression": "test/core.test.js: zero-config discovery; compatibility state-in-url Remix lane"
+      "regression": "test/core.test.ts: zero-config discovery; compatibility state-in-url Remix lane"
     },
     {
       "id": "BENZO-014",
       "problem": "Wireit and recursive pnpm orchestration could be treated as one server; a Portless-wrapped Vite command could be wrapped twice.",
       "status": "diagnosed-not-automatically-integrated",
       "fix": "Detect orchestration before framework matching and reject direct Portless wrappers with a diagnostic selecting the original command.",
-      "regression": "test/core.test.js: orchestrator rejection",
+      "regression": "test/core.test.ts: orchestrator rejection",
       "limitation": "A diagnostic is not zero-setup integration; root state-in-url/Sokosumi orchestration remains unsupported."
     },
     {
@@ -114,14 +114,14 @@
       "problem": "Nested workspace apps without their own packageManager or lockfile fell back to npm despite a pnpm workspace root.",
       "status": "fixed",
       "fix": "Discover the nearest ancestor package-manager declaration or lockfile while preserving package-local choices.",
-      "regression": "test/core.test.js: workspace package-manager inheritance; state-in-url Next worktree lanes"
+      "regression": "test/core.test.ts: workspace package-manager inheritance; state-in-url Next worktree lanes"
     },
     {
       "id": "BENZO-017",
       "problem": "Astro interprets duplicate --port options as an array and falls back to 4321, so unchanged scripts already using PORT fail behind Benzo.",
       "status": "fixed",
       "fix": "For Astro scripts already binding --port to PORT, preserve that binding and append only the host option.",
-      "regression": "test/core.test.js: Astro PORT binding; compatibility state-in-url astro lane",
+      "regression": "test/core.test.ts: Astro PORT binding; compatibility state-in-url astro lane",
       "limitation": "This fix targets existing supported PORT bindings. Arbitrary fixed-port wrapper scripts still need an explicit launch configuration."
     }
   ]
