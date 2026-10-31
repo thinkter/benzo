@@ -94,10 +94,12 @@ export function connectShared({
         );
       if (typeof message["error"] === "string")
         return fail(new Error(message["error"]));
+      if (Object.hasOwn(message, "error"))
+        return fail(new Error("Invalid Benzo gateway response."));
       if (message["ready"] !== true)
         return fail(new Error("Invalid Benzo gateway response."));
       const name = message["name"];
-      const transport = message["transport"] ?? "http";
+      const transport = Object.hasOwn(message, "transport") ? message["transport"] : "http";
       if (typeof name !== "string" || typeof transport !== "string")
         return fail(new Error("Invalid Benzo gateway response."));
       settled = true;

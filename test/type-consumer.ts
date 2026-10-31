@@ -16,3 +16,13 @@ function show(environment: EnvironmentDescriptor): void {
 void manifest;
 void origins;
 void show;
+
+import { publicState } from "../dist/runtime.js";
+import type { RuntimeState } from "../dist/index.js";
+const absent = publicState(undefined);
+const optionalStatus: string | undefined = absent.status;
+function snapshot(state: RuntimeState): string {
+  return publicState(state).status;
+}
+void optionalStatus;
+void snapshot;

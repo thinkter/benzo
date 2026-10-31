@@ -579,7 +579,7 @@ test("readiness and auth enums reject coercible arrays", () => {
 });
 
 test("control response rejects malformed declared fields", async () => {
-  for (const fields of [{name: []}, {name: "feature", transport: 42}]) {
+  for (const fields of [{name: []}, {name: "feature", transport: 42}, {name: "feature", transport: null}, {name: "feature", error: 42}, {name: "feature", error: null}]) {
     const server = createNetServer(socket => socket.once("data", () => socket.end(
       JSON.stringify({protocol: PROTOCOL, ready: true, ...fields}) + "\n"
     )));

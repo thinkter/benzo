@@ -1019,7 +1019,7 @@ test("supervisor rejects malformed wire state but accepts stop acknowledgments",
   const state = {controlPort: server.address().port, token: "test"};
   try {
     assert.deepEqual(await supervisorRequest(state), valid);
-    for (const change of [{name: []}, {ports: {web: "not-a-port"}}, {ports: {web: 0}}, {ports: {}}]) {
+    for (const change of [{name: []}, {ports: {web: "not-a-port"}}, {ports: {web: 0}}, {ports: {}}, {urls: {}}, {urls: {}, ports: {}}, {ports: {web: 10001, extra: 10002}}, {urls: {extra: "http://extra.localhost:3000"}}]) {
       response = {...valid, ...change};
       await assert.rejects(supervisorRequest(state), /Invalid supervisor response/);
     }

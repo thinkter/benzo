@@ -463,7 +463,9 @@ export async function runDev(
     process.off("SIGTERM", onSignal);
   }
 }
-export function publicState(state: RuntimeState | undefined) {
+export function publicState(state: RuntimeState): Omit<RuntimeState, "token">;
+export function publicState(state: RuntimeState | undefined): Partial<Omit<RuntimeState, "token">>;
+export function publicState(state: RuntimeState | undefined): Partial<Omit<RuntimeState, "token">> {
   if (!state) return {};
   const { token, ...safe } = state;
   return safe;
