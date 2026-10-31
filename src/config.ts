@@ -1,3 +1,4 @@
+import type { ManifestInput, NormalizedManifest, PackageJson, ServiceConfig } from "./types.js";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { unwrapPortless } from "./portless.js";
@@ -5,7 +6,7 @@ import { associatedManifest } from "./association.js";
 import { validateManifestShape } from "./manifest.js";
 export { manifestDiagnostics } from "./manifest.js";
 
-export const DEFAULT_MANIFEST = {
+export const DEFAULT_MANIFEST: NormalizedManifest = {
   schemaVersion: 1,
   gateway: { port: 3000, controlPort: 2999, host: "127.0.0.1" },
   worktree: { slots: 100, firstPort: 10000, stride: 32 },
@@ -14,8 +15,8 @@ export const DEFAULT_MANIFEST = {
   services: [],
 };
 const label = /^[a-z][a-z0-9-]{0,49}$/;
-const port = (value) => Number.isInteger(value) && value > 0 && value <= 65535;
-export function validateManifest(config) {
+const port = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 65535;
+export function validateManifest(config: ManifestInput): void {
   validateManifestShape(config);
   if (
     !config ||
@@ -24,7 +25,7 @@ export function validateManifest(config) {
     !config.services.length
   )
     throw new Error("At least one development service is required.");
-  const names = new Set();
+  const names = new Set<string>();
   for (const service of config.services) {
     if (
       typeof service.name !== "string" ||
@@ -38,7 +39,7 @@ export function validateManifest(config) {
       !service.command ||
       (service.args &&
         (!Array.isArray(service.args) ||
-          service.args.some((arg) => typeof arg !== "string")))
+          service.args.some((arg: string) => typeof arg !== "string")))
     )
       throw new Error(
         `Invalid command or args for ${service.name}. Commands are executable names; use args for arguments.`,
@@ -94,26 +95,27 @@ export function validateManifest(config) {
       throw new Error("auth.pathPrefix must start with /.");
   }
 }
-export function normalizeManifest(config) {
+export function normalizeManifest(config: ManifestInput): NormalizedManifest {
   validateManifestShape(config);
   const result = {
     ...DEFAULT_MANIFEST,
-    ...config,
+    ...config as Record<string, unknown>,
     gateway: { ...DEFAULT_MANIFEST.gateway, ...config.gateway },
     worktree: { ...DEFAULT_MANIFEST.worktree, ...config.worktree },
     backend: { ...DEFAULT_MANIFEST.backend, ...config.backend },
     auth: { ...DEFAULT_MANIFEST.auth, ...config.auth },
-  };
+  } as NormalizedManifest;
   if (config.gateway?.port && !config.gateway?.controlPort)
     result.gateway.controlPort = result.gateway.port - 1;
   validateManifest(result);
   return result;
 }
-export function framework(script) {
+export function framework(script: string | undefined): "next" | "vite" | "nuxt" | "astro" | "remix" | undefined {
   // Only add flags when the script ends in a known dev server. Do not guess how
   // turbo, concurrently, docker or an arbitrary wrapper forwards its arguments.
   if (typeof script !== "string" || /[;|`\n]/.test(script)) return undefined;
   script = script.split(/\s*&&\s*/).at(-1);
+  if (!script) return undefined;
   if (script.includes("&")) return undefined;
   if (/(?:^|\s)next\s+dev(?:\s|$)/.test(script)) return "next";
   if (
@@ -126,8 +128,8 @@ export function framework(script) {
   if (/(?:^|\s)remix\s+vite:dev(?:\s|$)/.test(script)) return "remix";
   return undefined;
 }
-function packageManager(root, pkg) {
-  if (pkg.packageManager) return pkg.packageManager.split("@")[0];
+function packageManager(root: string, pkg: PackageJson): string {
+  if (pkg.packageManager) return pkg.packageManager.split("@")[0] ?? "npm";
   for (let directory = resolve(root); ;) {
     if (existsSync(join(directory, "pnpm-lock.yaml"))) return "pnpm";
     if (existsSync(join(directory, "yarn.lock"))) return "yarn";
@@ -141,14 +143,14 @@ function packageManager(root, pkg) {
     if (parent === directory) break;
     const path = join(parent, "package.json");
     if (existsSync(path)) {
-      const ancestor = JSON.parse(readFileSync(path, "utf8"));
-      if (ancestor.packageManager) return ancestor.packageManager.split("@")[0];
+      const ancestor = JSON.parse(readFileSync(path, "utf8")) as PackageJson;
+      if (ancestor.packageManager) return ancestor.packageManager.split("@")[0] ?? "npm";
     }
     directory = parent;
   }
   return "npm";
 }
-function nestedFramework(cwd, script, depth = 0) {
+function nestedFramework(cwd: string, script: string | undefined, depth = 0): ReturnType<typeof framework> {
   const direct = framework(script);
   if (direct || depth > 5 || typeof script !== "string") return direct;
   // Follow the common workspace script delegation without editing or replacing
@@ -156,24 +158,24 @@ function nestedFramework(cwd, script, depth = 0) {
   const terminal = script
     .split(/\s*&&\s*/)
     .at(-1)
-    .trim();
+    ?.trim() ?? "";
   const match =
     terminal.match(
       /^(?:yarn|pnpm)\s+--cwd\s+([\w./-]+)\s+(?:run\s+)?([\w:-]+)$/,
     ) ?? terminal.match(/^npm\s+--prefix\s+([\w./-]+)\s+run\s+([\w:-]+)$/);
   if (match) {
-    const directory = resolve(cwd, match[1]);
+    const directory = resolve(cwd, match[1] ?? "");
     const path = join(directory, "package.json");
     if (existsSync(path))
       return nestedFramework(
         directory,
-        JSON.parse(readFileSync(path, "utf8")).scripts?.[match[2]],
+        (JSON.parse(readFileSync(path, "utf8")) as PackageJson).scripts?.[match[2] ?? ""],
         depth + 1,
       );
   }
   return undefined;
 }
-function discoverInput(cwd, { script, command, args = [] } = {}) {
+function discoverInput(cwd: string, { script, command, args = [] }: { script?: string; command?: string; args?: string[] } = {}): ManifestInput {
   if (command)
     return {
       discovery: "command",
@@ -184,14 +186,16 @@ function discoverInput(cwd, { script, command, args = [] } = {}) {
     throw new Error(
       "No package.json or Benzo config found. Run benzo dev -- <your-server> [args], or use --config <file>.",
     );
-  const pkg = JSON.parse(readFileSync(path, "utf8"));
+  const pkg = JSON.parse(readFileSync(path, "utf8")) as PackageJson;
   if (pkg.benzo) return pkg.benzo;
   script ??= pkg.scripts?.dev ? "dev" : "start";
+  if (!script) throw new Error("No dev or start script found.");
+  const scriptText = pkg.scripts?.[script] ?? "";
   if (
-    typeof pkg.scripts?.[script] === "string" &&
-    (/\b(?:turbo|nx|concurrently|docker|wireit)\b/.test(pkg.scripts[script]) ||
+    scriptText !== "" &&
+    (/\b(?:turbo|nx|concurrently|docker|wireit)\b/.test(scriptText) ||
       /(?:^|\s)pnpm\s+(?:[^\n]*\s)?(?:-r|--recursive|--parallel)(?:\s|$)/.test(
-        pkg.scripts[script],
+        scriptText,
       ))
   )
     throw new Error(
@@ -225,7 +229,7 @@ function discoverInput(cwd, { script, command, args = [] } = {}) {
     if (
       detected === "astro" &&
       /--port(?:\s+|=)["']?(?:\$\{PORT(?::-[^}]+)?\}|\$PORT|%PORT%)(?:["']?(?:\s|$))/.test(
-        pkg.scripts[script],
+        scriptText,
       )
     )
       flags.splice(-2);
@@ -242,7 +246,7 @@ function discoverInput(cwd, { script, command, args = [] } = {}) {
     };
   }
   if (pkg.scripts?.[script]) {
-    if (/\bbenzo\b/.test(pkg.scripts[script]))
+    if (/\bbenzo\b/.test(scriptText))
       throw new Error(
         "This script already invokes Benzo. Use --script to select the original application dev script.",
       );
@@ -255,13 +259,13 @@ function discoverInput(cwd, { script, command, args = [] } = {}) {
     `No ${script} script found. Use --script <name>, benzo dev -- <command> [args], or --config <file>.`,
   );
 }
-export function discoverManifest(cwd, options = {}) {
+export function discoverManifest(cwd: string, options: { script?: string; command?: string; args?: string[] } = {}): NormalizedManifest {
   return normalizeManifest(discoverInput(cwd, options));
 }
-export function loadManifest(cwd = process.cwd(), filename, options = {}) {
+export function loadManifest(cwd: string = process.cwd(), filename?: string, options: { script?: string; command?: string; args?: string[] } = {}): NormalizedManifest {
   return loadManifestWithSource(cwd, filename, options).config;
 }
-export function loadManifestWithSource(cwd = process.cwd(), filename, options = {}) {
+export function loadManifestWithSource(cwd: string = process.cwd(), filename?: string, options: { script?: string; command?: string; args?: string[] } = {}): { input: ManifestInput; config: NormalizedManifest; source: { kind: string; path?: string } } {
   const associated = filename === undefined ? associatedManifest(cwd) : undefined;
   const selected = filename ?? associated;
   const path = resolve(cwd, selected ?? "benzo.config.json");
@@ -274,7 +278,7 @@ export function loadManifestWithSource(cwd = process.cwd(), filename, options = 
       source: options.command ? { kind: "command" } : { kind: "package", path: join(cwd, "package.json") },
     };
   }
-  let config;
+  let config: ManifestInput;
   try {
     config = JSON.parse(readFileSync(path, "utf8"));
   } catch {
