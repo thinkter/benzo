@@ -1,10 +1,12 @@
+import type { RequestOptions } from "node:https";
+import type { IncomingHttpHeaders } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export async function tlsFixture(directory, prefix = "test") {
+export async function tlsFixture(directory: string, prefix = "test") {
   const certFile = join(directory, `${prefix}-cert.pem`);
   const keyFile = join(directory, `${prefix}-key.pem`);
   await promisify(execFile)(
@@ -37,26 +39,30 @@ export async function tlsFixture(directory, prefix = "test") {
 }
 
 export function secureRequest(
-  port,
-  cert,
+  port: number,
+  cert: string | undefined,
   path = "/",
   hostname = "feature.localhost",
-  extra = {},
+  extra: RequestOptions = {},
 ) {
-  return new Promise((resolve, reject) => {
+  return new Promise<{
+    status: number | undefined;
+    headers: IncomingHttpHeaders;
+    body: string;
+  }>((resolve, reject) => {
     const req = httpsRequest(
       {
         hostname: "127.0.0.1",
         servername: hostname,
         port,
         path,
-        ca: cert,
+        ...(cert === undefined ? {} : { ca: cert }),
         headers: { host: `${hostname}:${port}`, connection: "close" },
         ...extra,
       },
       (res) => {
         let body = "";
-        res.on("data", (chunk) => (body += chunk));
+        res.on("data", (chunk: Buffer) => (body += chunk.toString()));
         res.on("end", () =>
           resolve({ status: res.statusCode, headers: res.headers, body }),
         );

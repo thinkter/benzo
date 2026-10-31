@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
 import { createGateway } from "../../dist/core.js";
-import { tlsFixture } from "../tls-fixture.js";
+import { tlsFixture } from "../../.test-dist/test/tls-fixture.js";
 
 test(
   "HTTPS browser origins retain Secure cookies, Refresh navigation and encrypted WebSockets",

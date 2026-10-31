@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createServer, request as httpRequest } from "node:http";
 import { setTimeout as delay } from "node:timers/promises";
-import { tlsFixture, secureRequest } from "./tls-fixture.js";
+import { tlsFixture, secureRequest } from "../.test-dist/test/tls-fixture.js";
 
 const exec = promisify(execFile);
 const cli = resolve("dist/cli.js");

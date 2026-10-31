@@ -2,7 +2,7 @@ import { watch, statSync } from "node:fs";
 import type { FSWatcher } from "node:fs";
 import { resolve, join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { launch, stop } from "../src/process.js";
+import { launch, stop } from "#production/process";
 import type { ChildProcess } from "node:child_process";
 
 export function watchTests(options: {
@@ -70,7 +70,18 @@ export function watchTests(options: {
       closed = true;
       clearTimeout(timer);
       for (const watcher of watchers) watcher.close();
-      await stop(child);
+      const active = child;
+      const exited =
+        active &&
+        active.pid !== undefined &&
+        active.exitCode === null &&
+        active.signalCode === null
+          ? new Promise<void>((resolveExit) =>
+              active.once("exit", () => resolveExit()),
+            )
+          : Promise.resolve();
+      await stop(active);
+      await exited;
     })());
   }
   try {
@@ -123,9 +134,10 @@ if (
       "tsconfig.tools.json",
     ],
   });
-  const shutdown = (): void => {
+  const shutdown = (code: number): void => {
+    process.exitCode = code;
     void watcher.close();
   };
-  process.once("SIGINT", shutdown);
-  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", () => shutdown(130));
+  process.once("SIGTERM", () => shutdown(143));
 }

@@ -1,3 +1,11 @@
+import type { Server } from "node:http";
+import type { RequestOptions } from "node:https";
+import { TLSSocket } from "node:tls";
+function portOf(server: Server): number {
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  return address.port;
+}
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
@@ -5,17 +13,17 @@ import { request as httpsRequest } from "node:https";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createGateway, normalizeManifest } from "../dist/core.js";
-import { gatewayTransport } from "../dist/tls.js";
+import { createGateway, normalizeManifest } from "#production/core";
+import { gatewayTransport } from "#production/tls";
 import { tlsFixture, secureRequest } from "./tls-fixture.js";
-import { reserveEnvironment } from "../dist/sdk.js";
+import { reserveEnvironment } from "#production/sdk";
 import { setTimeout as delay } from "node:timers/promises";
 
-const listen = (server) =>
-  new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const close = (server) =>
-  new Promise((resolve) => {
-    server.close(resolve);
+const listen = (server: Server) =>
+  new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+const close = (server: Server) =>
+  new Promise<void>((resolve) => {
+    server.close(() => resolve());
     server.closeAllConnections();
   });
 
@@ -24,15 +32,15 @@ test(
   { timeout: 30000 },
   async () => {
     const directory = await mkdtemp(join(tmpdir(), "benzo-sdk-tls-"));
-    const oldHome = process.env.BENZO_HOME;
-    process.env.BENZO_HOME = join(directory, "home");
+    const oldHome = process.env["BENZO_HOME"];
+    process.env["BENZO_HOME"] = join(directory, "home");
     const app = createServer((_req, res) => res.end("external"));
-    let lease;
+    let lease: Awaited<ReturnType<typeof reserveEnvironment>> | undefined;
     try {
       const tls = await tlsFixture(directory);
       const probe = createServer();
       await listen(probe);
-      const port = probe.address().port;
+      const port = portOf(probe);
       await close(probe);
       await listen(app);
       lease = await reserveEnvironment({
@@ -44,11 +52,11 @@ test(
         },
       });
       assert.equal(
-        lease.describe().services[0].origin,
+        lease.describe().services[0]?.origin,
         `https://feature.localhost:${port}`,
       );
       assert.equal((await secureRequest(port, tls.cert)).status, 503);
-      await lease.attach("web", { port: app.address().port });
+      await lease.attach("web", { port: portOf(app) });
       await lease.setReady("web");
       assert.equal((await secureRequest(port, tls.cert)).body, "external");
       await lease.setReady("web", false);
@@ -58,8 +66,8 @@ test(
     } finally {
       await lease?.release();
       await close(app);
-      if (oldHome === undefined) delete process.env.BENZO_HOME;
-      else process.env.BENZO_HOME = oldHome;
+      if (oldHome === undefined) delete process.env["BENZO_HOME"];
+      else process.env["BENZO_HOME"] = oldHome;
       await delay(1000);
       await rm(directory, { recursive: true, force: true });
     }
@@ -71,11 +79,12 @@ test(
   { timeout: 30000 },
   async () => {
     const directory = await mkdtemp(join(tmpdir(), "benzo-tls-"));
-    let app, gateway;
+    let app: Server | undefined;
+    let gateway: ReturnType<typeof createGateway> | undefined;
     try {
       const fixture = await tlsFixture(directory);
       const transport = gatewayTransport({ tls: fixture }, directory);
-      let port;
+      let port: number;
       app = createServer((req, res) => {
         if (req.url === "/login") {
           const authorization = new URL("https://provider.invalid/authorize");
@@ -98,14 +107,14 @@ test(
           return res
             .writeHead(200, { refresh: `0;url=https://localhost:${port}/done` })
             .end();
-        res
+        return res
           .writeHead(200, {
             "set-cookie":
               "session=opaque; Secure; HttpOnly; SameSite=Lax; Path=/",
           })
           .end(
             JSON.stringify({
-              host: req.headers.host,
+              host: req.headers["host"],
               protocol: req.headers["x-forwarded-proto"],
             }),
           );
@@ -114,18 +123,21 @@ test(
         socket.write(
           "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n",
         );
-        socket.write(req.headers["x-forwarded-proto"]);
-        socket.on("data", (chunk) => socket.write(chunk));
+        const protocol = req.headers["x-forwarded-proto"];
+        assert.equal(typeof protocol, "string");
+        assert.ok(typeof protocol === "string");
+        socket.write(protocol);
+        socket.on("data", (chunk: Buffer) => socket.write(chunk));
         socket.on("end", () => socket.end());
       });
       await listen(app);
       gateway = createGateway({
         port: 0,
-        tls: transport.tls,
-        routes: new Map([["feature.localhost", app.address().port]]),
+        ...(transport.tls ? { tls: transport.tls } : {}),
+        routes: new Map([["feature.localhost", portOf(app)]]),
       });
       await gateway.listen();
-      port = gateway.server.address().port;
+      port = portOf(gateway.server);
       const response = await secureRequest(port, fixture.cert);
       assert.deepEqual(JSON.parse(response.body), {
         host: `feature.localhost:${port}`,
@@ -136,11 +148,13 @@ test(
       ]);
       await assert.rejects(
         secureRequest(port, undefined),
-        (error) => error.code === "DEPTH_ZERO_SELF_SIGNED_CERT",
+        (error: Error) =>
+          "code" in error && error.code === "DEPTH_ZERO_SELF_SIGNED_CERT",
       );
       await assert.rejects(
         secureRequest(port, fixture.cert, "/", "uncovered.localhost"),
-        (error) => error.code === "ERR_TLS_CERT_ALTNAME_INVALID",
+        (error: Error) =>
+          "code" in error && error.code === "ERR_TLS_CERT_ALTNAME_INVALID",
       );
       assert.equal(
         (await secureRequest(port, fixture.cert, "/redirect")).headers.location,
@@ -151,10 +165,13 @@ test(
         `http://localhost:${port}/done`,
       );
       assert.equal(
-        (await secureRequest(port, fixture.cert, "/refresh")).headers.refresh,
+        (await secureRequest(port, fixture.cert, "/refresh")).headers[
+          "refresh"
+        ],
         `0;url=https://feature.localhost:${port}/done`,
       );
       const auth = await secureRequest(port, fixture.cert, "/login");
+      assert.ok(auth.headers.location);
       assert.equal(
         new URL(auth.headers.location).searchParams.get("redirect_uri"),
         `https://localhost:${port}/callback`,
@@ -181,7 +198,7 @@ test(
         ).status,
         409,
       );
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const req = httpsRequest({
           hostname: "127.0.0.1",
           servername: "feature.localhost",
@@ -197,14 +214,14 @@ test(
         req.on("response", () =>
           reject(new Error("Expected WebSocket upgrade")),
         );
-        req.on("upgrade", (res, socket, head) => {
+        req.on("upgrade", (_res, socket, head) => {
           let bytes = head.toString();
           const timer = setTimeout(() => {
             socket.destroy();
             reject(new Error("WSS timeout"));
           }, 5000);
           socket.on("error", reject);
-          socket.on("data", (chunk) => {
+          socket.on("data", (chunk: Buffer) => {
             bytes += chunk;
             if (bytes.includes("httpsprobe")) {
               clearTimeout(timer);
@@ -239,7 +256,12 @@ test(
         { certFile: 12, keyFile: "key.pem" },
       ])
         assert.throws(
-          () => normalizeManifest({ ...base, gateway: { tls } }),
+          // Invoke as an untyped JavaScript consumer to verify runtime rejection.
+          () => {
+            Reflect.apply(normalizeManifest, undefined, [
+              { ...base, gateway: { tls } },
+            ]);
+          },
           /gateway.tls/,
         );
       assert.throws(
@@ -257,7 +279,7 @@ test(
             { tls: { certFile: "bad.pem", keyFile: "bad.pem" } },
             directory,
           ),
-        (error) =>
+        (error: Error) =>
           !error.message.includes("private-key-secret") &&
           /Cannot load gateway TLS/.test(error.message),
       );
@@ -280,23 +302,46 @@ test(
 
 test("gateway preserves caller TLS client-authentication and version policy", async () => {
   const directory = await mkdtemp(join(tmpdir(), "benzo-tls-policy-"));
-  let gateway;
+  let gateway: ReturnType<typeof createGateway> | undefined;
   try {
     const fixture = await tlsFixture(directory);
-    gateway = createGateway({ port: 0, tls: {
-      cert: fixture.cert, key: fixture.key, ca: fixture.cert,
-      requestCert: true, rejectUnauthorized: true, maxVersion: "TLSv1.2",
-    } });
-    await gateway.listen();
-    const port = gateway.server.address().port;
-    const request = (identity) => new Promise((resolve, reject) => {
-      const req = httpsRequest({
-        host: "127.0.0.1", port, ca: fixture.cert, ...identity,
-      }, res => { const protocol = res.socket.getProtocol(); res.resume(); res.once("end", () => resolve(protocol)); });
-      req.on("error", reject); req.end();
+    gateway = createGateway({
+      port: 0,
+      tls: {
+        cert: fixture.cert,
+        key: fixture.key,
+        ca: fixture.cert,
+        requestCert: true,
+        rejectUnauthorized: true,
+        maxVersion: "TLSv1.2",
+      },
     });
+    await gateway.listen();
+    const port = portOf(gateway.server);
+    const request = (identity: RequestOptions) =>
+      new Promise<string | null>((resolve, reject) => {
+        const req = httpsRequest(
+          {
+            host: "127.0.0.1",
+            port,
+            ca: fixture.cert,
+            ...identity,
+          },
+          (res) => {
+            assert.ok(res.socket instanceof TLSSocket);
+            const protocol = res.socket.getProtocol();
+            res.resume();
+            res.once("end", () => resolve(protocol));
+          },
+        );
+        req.on("error", reject);
+        req.end();
+      });
     await assert.rejects(request({}));
-    assert.equal(await request({ cert: fixture.cert, key: fixture.key }), "TLSv1.2");
+    assert.equal(
+      await request({ cert: fixture.cert, key: fixture.key }),
+      "TLSv1.2",
+    );
   } finally {
     await gateway?.close();
     await rm(directory, { recursive: true, force: true });

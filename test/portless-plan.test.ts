@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { inspectPortless } from "../src/portless-plan.js";
+import { inspectPortless } from "#production/portless-plan";
 
 function parseObject(text: string): Record<string, Json> {
   const value: Json = JSON.parse(text);

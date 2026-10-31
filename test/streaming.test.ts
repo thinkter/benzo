@@ -14,7 +14,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer, request } from "node:http";
 import { once } from "node:events";
-import { createGateway } from "../src/gateway.js";
+import { createGateway } from "#production/gateway";
 
 async function fixture(handler: RequestListener) {
   const app = createServer(handler).listen(0, "127.0.0.1");

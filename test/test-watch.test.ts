@@ -89,3 +89,120 @@ process.exit(result.status ?? 1);
     }
   },
 );
+
+async function waitForFile(path: string): Promise<string> {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    try {
+      const content = await readFile(path, "utf8");
+      if (content) return content;
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !("code" in error) ||
+        error.code !== "ENOENT"
+      )
+        throw error;
+    }
+    await delay(20);
+  }
+  throw new Error("Child did not become ready");
+}
+
+test(
+  "closing a watcher waits for a SIGTERM-resistant active child to exit",
+  {
+    skip: process.platform === "win32",
+    timeout: 15000,
+  },
+  async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "benzo-watch-stop-"));
+    let watcher: ReturnType<typeof watchTests> | undefined;
+    try {
+      await writeFile(
+        join(cwd, "child.cjs"),
+        `
+      require("node:fs").writeFileSync("pid", String(process.pid));
+      process.on("SIGTERM", () => {});
+      setInterval(() => {}, 1000);
+    `,
+      );
+      watcher = watchTests({
+        cwd,
+        command: process.execPath,
+        args: ["child.cjs"],
+        paths: ["child.cjs"],
+        report: () => {},
+      });
+      const pid = Number(await waitForFile(join(cwd, "pid")));
+      await watcher.close();
+      assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+      await watcher.close();
+    } finally {
+      await watcher?.close();
+      await rm(cwd, { recursive: true, force: true });
+    }
+  },
+);
+
+for (const [signal, code] of [
+  ["SIGINT", 130],
+  ["SIGTERM", 143],
+] as const) {
+  test(
+    `watch CLI exits with ${code} after ${signal} and cleans up its active child`,
+    {
+      skip: process.platform === "win32",
+      timeout: 15000,
+    },
+    async () => {
+      const { spawn } = await import("node:child_process");
+      const { mkdir } = await import("node:fs/promises");
+      const { fileURLToPath } = await import("node:url");
+      const cwd = await mkdtemp(join(tmpdir(), "benzo-watch-signal-"));
+      const entry = fileURLToPath(
+        new URL("../scripts/test-watch.js", import.meta.url),
+      );
+      for (const dir of ["src", "test", "scripts", "compatibility"])
+        await mkdir(join(cwd, dir));
+      for (const file of [
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.tests.json",
+        "tsconfig.consumer.json",
+        "tsconfig.tools.json",
+      ])
+        await writeFile(join(cwd, file), "{}");
+      const runner = join(cwd, "runner.cjs");
+      await writeFile(
+        runner,
+        `
+      process.on("SIGTERM", () => {});
+      require("node:fs").writeFileSync("pid", String(process.pid));
+      setInterval(() => {}, 1000);
+    `,
+      );
+      const child = spawn(process.execPath, [entry], {
+        cwd,
+        env: { ...process.env, npm_execpath: runner },
+        stdio: "ignore",
+      });
+      const exited = new Promise<number | null>((resolveExit, reject) => {
+        child.once("error", reject);
+        child.once("exit", resolveExit);
+      });
+      try {
+        const pid = Number(await waitForFile(join(cwd, "pid")));
+        child.kill(signal);
+        assert.equal(await exited, code);
+        assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+      } finally {
+        if (child.exitCode === null && child.signalCode === null) {
+          child.kill("SIGTERM");
+          await exited;
+        }
+        await rm(cwd, { recursive: true, force: true });
+      }
+    },
+  );
+}

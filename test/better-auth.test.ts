@@ -1,5 +1,5 @@
 import type { Server, IncomingHttpHeaders } from "node:http";
-import type { JsonValue, JsonObject } from "../src/types.js";
+import type { JsonValue, JsonObject } from "#production/types";
 function portOf(server: Server): number {
   const address = server.address();
   if (!address || typeof address === "string")
@@ -17,7 +17,7 @@ import { createServer, request as httpRequest } from "node:http";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { toNodeHandler } from "better-auth/node";
-import { createGateway } from "../src/core.js";
+import { createGateway } from "#production/core";
 const listen = (server: Server) =>
   new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 const close = (server: Server) =>
