@@ -244,5 +244,10 @@ to receive an explicit URL binding from the running environment. The client must
 already support that environment variable; Benzo preserves its arguments and
 does not change the dev server's lifecycle.
 
-Development builds use strict TypeScript: run `npm run typecheck` or `npm run build`.
-The published CLI and SDK run from `dist/`; `npm test` builds before testing the compiled implementation.
+Development sources, tests, and benchmark tools use strict TypeScript. Run
+`npm run typecheck` for production and `npm test` to compile all three projects,
+check consumer declarations, and run the core suites against the built package.
+The published CLI and SDK run from `dist/`; tests and tools compile into ignored
+`.test-dist/` and `.tools-dist/` directories. Use `npm run test:compat -- <project>`
+to build and run the benchmark. Generated JavaScript and embedded JavaScript
+fixture programs remain intentional runtime artifacts.

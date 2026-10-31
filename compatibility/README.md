@@ -134,7 +134,7 @@ state-in-url results are per-example scenarios; Docker/auth prerequisites block
 the other functional journeys. No backend or orchestrator features are added to
 Benzo to make these trials pass. Raw logs remain under ignored `.compat`.
 
-Reports with `harnessInputs` fingerprint every top-level compatibility `.mjs` and `.ts`
+Reports with `harnessInputs` fingerprint every top-level compatibility `.ts`
 module (including scenario/verdict and evidence helpers), every `src/*.ts`
 runtime helper, the pinned project recipes, and the Benzo package/lock manifests.
 Each entry records a relative path and its SHA-256; `harnessSha256` hashes the
@@ -157,6 +157,6 @@ replace or erase the failed full comparison. Older reports' `configured.result`
 inherited the overall comparison verdict. New reports calculate that field from
 selected original/Benzo/cleanup scenarios independently of competitor results.
 
-Reports carrying `evidenceScope.status: historical` describe the pre-TypeScript JavaScript implementation. Their original hashes and outcomes are preserved; they do not validate the current checkout. Use the recorded historical revision to inspect those source paths. Fresh TypeScript benchmark results are still pending.
+Reports carrying `evidenceScope.status: historical` describe the pre-TypeScript JavaScript implementation. Their original hashes and outcomes are preserved; they do not validate the current checkout. Use the recorded historical revision to inspect those source paths. The scoped TypeScript React run is recorded separately in `state-in-url-linux-typescript-react.json`: baseline, Portless comparison, packaged Benzo worktrees and cleanup passed. The other seven examples were not run, so its overall result remains partial and replacement is not established. Its hashes identify the tested migration snapshot, not subsequent source changes.
 
 During the TypeScript migration, provenance also includes emitted compatibility helpers in `.tools-dist/compatibility` and `tsconfig.tools.json`. The direct benchmark entry point builds these helpers before loading them. Historical reports retain their original fingerprints.

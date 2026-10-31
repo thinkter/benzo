@@ -1,0 +1,401 @@
+{
+  "project": "state-in-url",
+  "repository": "https://github.com/asmyshlyaev177/state-in-url.git",
+  "commit": "8edfd055ddb06da34bfaf4b9cdae50e6562d5eb9",
+  "benzoBuild": "c969ed892900d133274ffc2c79dded46e2eda22e5e9d8c1d33e5a7be910c8371",
+  "harnessSha256": "542a139166fe27cc3289acc91ad33806c161282b131bb01dedb5cb85ae2791bd",
+  "harnessInputs": [
+    {
+      "path": ".tools-dist/compatibility/acceptance.js",
+      "sha256": "98c9c8e3bb0f2e71947c33c0d30d7bcfe59e658a23823452285d17f1faf76e13"
+    },
+    {
+      "path": ".tools-dist/compatibility/consumers.js",
+      "sha256": "5e962de131d49bce5a8f57131d0ea7b7baa387549ce98b0bb9c929f863395058"
+    },
+    {
+      "path": ".tools-dist/compatibility/evidence.js",
+      "sha256": "146dbdd6db4c0e59ab8325aa6aa7b54af3087fad88241eb757d3cdb26d50809d"
+    },
+    {
+      "path": ".tools-dist/compatibility/run.js",
+      "sha256": "1255531f67858471da1d6a9177b4b82c5122f1d862dd4944478309c44dead8c8"
+    },
+    {
+      "path": ".tools-dist/compatibility/runner.js",
+      "sha256": "d12e5ecf690ac4c8748a7ba0a396b6de8c612a366a0be4ed41a3dbc71751857b"
+    },
+    {
+      "path": ".tools-dist/compatibility/types.js",
+      "sha256": "01ae2a5b120382f9a648ced7ee8507493a134f216d100fc61600c6c9738235d2"
+    },
+    {
+      "path": ".tools-dist/compatibility/values.js",
+      "sha256": "753e192fcd8f04462c309cdb859bc12cb5f9ec708d344f9572a6611dac0d43d6"
+    },
+    {
+      "path": "compatibility/acceptance.ts",
+      "sha256": "055bd7a424e2e313da111c77c943f80201a5a5411bb837bf09c413eadf10a206"
+    },
+    {
+      "path": "compatibility/consumers.ts",
+      "sha256": "ff52d5a4a50de9dde3125e686b21d3a85ccbe40936e450de4528b032d4de7262"
+    },
+    {
+      "path": "compatibility/evidence.ts",
+      "sha256": "b88a8a4fe3c9f59e00514a5539d02987e787ad03699fda4b9126438b976d512f"
+    },
+    {
+      "path": "compatibility/recipes/projects.json",
+      "sha256": "b8145c164f5c6417c366bcacc2b2bd6f8e7bb051a4e42dbc0e63d879d4fd1345"
+    },
+    {
+      "path": "compatibility/run.ts",
+      "sha256": "2a03f075f6e9603a1a5fcd16e827548431c0aa1c9ee04996d0adc6cecce45cf3"
+    },
+    {
+      "path": "compatibility/runner.ts",
+      "sha256": "5fd41606a023996927cab6018784b9b6bcc402deca67a546edc547dabf4577a5"
+    },
+    {
+      "path": "compatibility/types.ts",
+      "sha256": "95d63d7a54cd486316aba9f5eee0c35077235e80cafef3fab1af8b58fdf8e52e"
+    },
+    {
+      "path": "compatibility/values.ts",
+      "sha256": "045bbb1dd4f9037421fb8af4ee3d672b2cd5faa7f66186a8da9887e97b7cd72d"
+    },
+    {
+      "path": "dist/association.js",
+      "sha256": "3b996a03acb45866f421427d1ced8adb6fa1064de8d74c1205b9d1d5e2ac9057"
+    },
+    {
+      "path": "dist/callback-form.js",
+      "sha256": "b8569f34cc6bd6b7190d4e5e7f59171e157ab4cb7e29f3c14dff8ec77791bb0f"
+    },
+    {
+      "path": "dist/cli.js",
+      "sha256": "17b5e2f8237ff955fc8a9a8b8156bef7e1f820b91cd46b5c63ac845d105bed53"
+    },
+    {
+      "path": "dist/client.js",
+      "sha256": "78351c27cfd06aaab5982cad473b0e28a85ec659d645d5921354728341a37476"
+    },
+    {
+      "path": "dist/config.js",
+      "sha256": "cebe5a5ca2e3c14e41fe147da21b69a6e73ac179b34cde677327485981404ca9"
+    },
+    {
+      "path": "dist/core.js",
+      "sha256": "d55733f1aa115b2794c9a9bb31b927ffbf3a5a034a24278435e5c41c809bb9eb"
+    },
+    {
+      "path": "dist/daemon.js",
+      "sha256": "aa14286c353a9edb7d6324500936bb1f006b9dc8c341003180861efd6c66fce0"
+    },
+    {
+      "path": "dist/descriptor.js",
+      "sha256": "a40ef656b177c25f9f5029b7f5841f989669ab0ee35a6dccc5d3b9c3fcd1e30b"
+    },
+    {
+      "path": "dist/gateway.js",
+      "sha256": "1710ad2962ee75a6e650cb1863101327f1b36d38808db3369b0a34ed24099ef5"
+    },
+    {
+      "path": "dist/index.js",
+      "sha256": "2395e17b18f0e3008fc313ed80d3ad0116ee117e9aca3ab5557b9a02f4f50811"
+    },
+    {
+      "path": "dist/manifest.js",
+      "sha256": "c94e74e3c75e3f205698c51cdfd12c6a915b6504131f4a630237955768b75d1e"
+    },
+    {
+      "path": "dist/origin.js",
+      "sha256": "4c2981ce4e153ceebbd9634a67792d18c084512f1e198f12c75434122d684d18"
+    },
+    {
+      "path": "dist/plan.js",
+      "sha256": "d069ae2443fc5a92c5d07d878af376f28fe7df8b4cbae65afd792b7bc0beda00"
+    },
+    {
+      "path": "dist/portless-plan.js",
+      "sha256": "97c0cbb20d7b272ca3e6651b6fbf2f416a2a9e26253f44eb99a758d26b662f07"
+    },
+    {
+      "path": "dist/portless.js",
+      "sha256": "43ce143507109bf7405290559b7607724884830f077e47ab3622839cce5585f6"
+    },
+    {
+      "path": "dist/process.js",
+      "sha256": "302b55602b988125e598cc6c901b3c1644e7819ea2e39d4c4033a2235a38e964"
+    },
+    {
+      "path": "dist/protocol.js",
+      "sha256": "bb55f4a793813863b66697ec4256d95b5791e1bcb8fb0f7984b87b0a81ffba30"
+    },
+    {
+      "path": "dist/registration.js",
+      "sha256": "77b0685b6e2813c22ef6dd585d797dbf9d82547dc9210fc64bd6d63ed3f8617a"
+    },
+    {
+      "path": "dist/runtime.js",
+      "sha256": "dabc0fc22f772bc0ccadf2f40387a1c0b076351043b15090a9d687d438b97e21"
+    },
+    {
+      "path": "dist/sdk.js",
+      "sha256": "745c9cdfd411e3b13c2c40d5901010535c2cd805831e1a4770ea4d2b7758f353"
+    },
+    {
+      "path": "dist/state.js",
+      "sha256": "6282152bcbdbd67d30cd006bce775db55731ea4fb2547d91d2c2f82fa79332f7"
+    },
+    {
+      "path": "dist/tls.js",
+      "sha256": "b56d3b198b9c73e69fdb7bd82275c4f1abf46ab871b7c9bf59681965df8416be"
+    },
+    {
+      "path": "dist/types.js",
+      "sha256": "01ae2a5b120382f9a648ced7ee8507493a134f216d100fc61600c6c9738235d2"
+    },
+    {
+      "path": "dist/wire.js",
+      "sha256": "6ce4dee14e051088f8b596844848d292f58afb2b4b5fe844f432cdb5864188a5"
+    },
+    {
+      "path": "package.json",
+      "sha256": "05819efe16d5150e1a0437159a34f560b6a95aa2cd4290f7305b85b48a8293ec"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "sha256": "8c677addd236fc830e95a14638699941935f903db7ced9ba522d4dc4a552852f"
+    },
+    {
+      "path": "src/association.ts",
+      "sha256": "2549f32908a3ad0d6c942deb0332edbf9893d604e35562839d4cc82c85743881"
+    },
+    {
+      "path": "src/callback-form.ts",
+      "sha256": "4dc1078a1c9b13b30802fa1d5d95b3120d1792391db07366d2d116992791d282"
+    },
+    {
+      "path": "src/cli.ts",
+      "sha256": "392a75a780dd60da73c3a0ef501942246d20a29ee4e463ce6992a001533ca876"
+    },
+    {
+      "path": "src/client.ts",
+      "sha256": "a0d952a249bab8de93358474f8343d41a75d750bf3f537b7daace66be00beac9"
+    },
+    {
+      "path": "src/config.ts",
+      "sha256": "c419fe9b566e2620a54561649a1ac4f3b341f1cddd269603420650930b2e83b3"
+    },
+    {
+      "path": "src/core.ts",
+      "sha256": "322e2f7ca0cb279807d044c70b0bd92cd0578625fc6e942f01b87d0499ab2188"
+    },
+    {
+      "path": "src/daemon.ts",
+      "sha256": "abeebe9cdac99f43dd49d038affe368056c8811d0de3e86546438fb597eec5b4"
+    },
+    {
+      "path": "src/descriptor.ts",
+      "sha256": "6b93e434154271296f517d95323b2ce2e349dc862e4311c0733715a20a881c37"
+    },
+    {
+      "path": "src/gateway.ts",
+      "sha256": "844dddb948ce2c8580aedeb7a7388f51d6712556cf45a0cbabde1e4ccbecf81f"
+    },
+    {
+      "path": "src/index.ts",
+      "sha256": "0fae0596bbbd2792384bcaead0403aaf5a39de376999737140a9eec10fe9d515"
+    },
+    {
+      "path": "src/manifest.ts",
+      "sha256": "06812e7311677a8d5881536e8d04bb8f1166973eb4bf7fd62dc16dfbf130faf7"
+    },
+    {
+      "path": "src/origin.ts",
+      "sha256": "e21b52857752b28df245389a63075a04b6785ee2d01663d606635eddd7a5eec7"
+    },
+    {
+      "path": "src/plan.ts",
+      "sha256": "f800f7171acb5e2950d18881e56c4b3b216c0224d37296b3224cd0a8be312807"
+    },
+    {
+      "path": "src/portless-plan.ts",
+      "sha256": "08d2b89fc377e2193a35a8b4bce788e5ea38fc63605d2716be789d49aa5989b6"
+    },
+    {
+      "path": "src/portless.ts",
+      "sha256": "1b330c92cfccf36a59e02728f039afac26acc75d154937f76a331f0496b29f47"
+    },
+    {
+      "path": "src/process.ts",
+      "sha256": "3b859c2c6dd1030700ca9e486da7966eb1b906c6348a97573d7b90e2bc0431e7"
+    },
+    {
+      "path": "src/protocol.ts",
+      "sha256": "c01a57e355c9cbdc0befd8643139ee6584b967e8f6ad53cf95e340166f0b8a64"
+    },
+    {
+      "path": "src/registration.ts",
+      "sha256": "10fc4b24af474c50847aede14a944356a8c6cab54928715725bcea265e09973a"
+    },
+    {
+      "path": "src/runtime.ts",
+      "sha256": "1f798676bc67526afbe269e4318d3799138eb85402f1c41b2c20c0a21eff99bc"
+    },
+    {
+      "path": "src/sdk.ts",
+      "sha256": "a33afb8b7daa41abab63fd53658c5c10877274ed743f27cd4f41639788a1c7dd"
+    },
+    {
+      "path": "src/state.ts",
+      "sha256": "1eb11033372df4136d497e38b04b49de66fab41ffe6bb0fb8db55e675f67b5cc"
+    },
+    {
+      "path": "src/tls.ts",
+      "sha256": "f6dc0ecb0a4597839140e2024fdff29d0fbefc420224b2681903da2bb64686b2"
+    },
+    {
+      "path": "src/types.ts",
+      "sha256": "fd413a7909d6749e0c53a1dabf20411728ab2c16011a56e82b322785f9476a47"
+    },
+    {
+      "path": "src/wire.ts",
+      "sha256": "0d04100738f0afc7100c9c1866c371dca846c4d0141b80037d45585e63885da1"
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "bc808eb33365efa5af1cbc6f5fbd685c06369231677d2c42552381db2ee565c5"
+    },
+    {
+      "path": "tsconfig.tools.json",
+      "sha256": "e22bb81ca260071bf342b7b311638987ec63f72427107f7250201cf58d21d9b5"
+    }
+  ],
+  "testedAt": "2026-10-31T18:57:25.915Z",
+  "platform": {
+    "os": "linux",
+    "architecture": "x64",
+    "node": "v26.10.0"
+  },
+  "bare": {
+    "argv": [],
+    "cwd": "repository-root",
+    "result": "unsupported",
+    "exitCode": 1,
+    "reason": "Root script is an orchestrator; no automatic adaptation is attempted."
+  },
+  "configured": {
+    "result": "passed",
+    "scope": "selected example apps, not the repository root",
+    "selectedApps": [
+      "react"
+    ],
+    "argv": [
+      "dev",
+      "--cwd",
+      "<example-worktree>",
+      "--name",
+      "<example-name>",
+      "--gateway-port",
+      "<allocated>"
+    ]
+  },
+  "baseline": "passed",
+  "result": "partial",
+  "applicationChangesRequired": false,
+  "scenarios": [
+    {
+      "case": "react:baseline",
+      "lane": "original-command",
+      "result": "passed",
+      "durationMs": 2126
+    },
+    {
+      "case": "react:portless",
+      "lane": "portless",
+      "origin": "http://example-react.localhost:43063",
+      "result": "passed",
+      "durationMs": 76577
+    },
+    {
+      "case": "react:consumer-parity",
+      "lane": "packaged-benzo",
+      "applicationEdits": 0,
+      "manifestFiles": 0,
+      "result": "passed",
+      "originPreserved": true,
+      "comparedWithPortless": true,
+      "hmrIsolation": "passed",
+      "stopPreservesPeer": true,
+      "durationMs": 3607
+    },
+    {
+      "case": "react:cleanup",
+      "result": "passed",
+      "durationMs": 602
+    },
+    {
+      "case": "react-router6:consumer-parity",
+      "result": "not-run"
+    },
+    {
+      "case": "react-router7:consumer-parity",
+      "result": "not-run"
+    },
+    {
+      "case": "remix2:consumer-parity",
+      "result": "not-run"
+    },
+    {
+      "case": "astro:consumer-parity",
+      "result": "not-run"
+    },
+    {
+      "case": "nextjs14:consumer-parity",
+      "result": "not-run"
+    },
+    {
+      "case": "nextjs15:consumer-parity",
+      "result": "not-run"
+    },
+    {
+      "case": "nextjs16:consumer-parity",
+      "result": "not-run"
+    }
+  ],
+  "schemaVersion": 2,
+  "replacement": "not-established",
+  "execution": "completed",
+  "reproduction": "pnpm test:compat state-in-url",
+  "discovery": "unsupported",
+  "discoveryDiagnostic": "The dev script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application.",
+  "packageManager": "pnpm@10.26.0",
+  "setup": {
+    "applicationEdits": 0,
+    "manifestFiles": 0,
+    "baselineCommands": [
+      "pnpm install --frozen-lockfile",
+      "pnpm run build"
+    ],
+    "benzoFlags": [
+      "--cwd",
+      "--name",
+      "--gateway-port"
+    ],
+    "environmentOverrides": [],
+    "upstreamShellScriptsPortable": false
+  },
+  "browser": {
+    "name": "chromium",
+    "version": "156.0.8078.4"
+  },
+  "competitor": {
+    "name": "portless",
+    "version": "0.15.5"
+  },
+  "sourceUnchanged": true,
+  "scope": "Eight example apps; upstream root Wireit orchestration and literal-origin upstream E2E suite are not replaced. Assertions are adapted from upstream, not the entire upstream test suite."
+}
