@@ -48,9 +48,14 @@ export function supervisorState(text: string): Omit<RuntimeState, "token"> {
   );
   const urls = stringMap(value["urls"]);
   const names = Object.keys(urls);
-  if (!names.length || names.length !== Object.keys(ports).length ||
-      names.some((key) => !Object.hasOwn(ports, key)))
-    throw new Error("Service URLs and ports must have identical nonempty key sets.");
+  if (
+    !names.length ||
+    names.length !== Object.keys(ports).length ||
+    names.some((key) => !Object.hasOwn(ports, key))
+  )
+    throw new Error(
+      "Service URLs and ports must have identical nonempty key sets.",
+    );
   return {
     protocol: "benzo/1",
     slot,
