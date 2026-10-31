@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import type { CliOptions } from "./types.js";
 import { readFileSync, existsSync, realpathSync } from "node:fs";
 import { resolve, basename } from "node:path";
 import { lookup } from "node:dns/promises";
@@ -24,8 +25,8 @@ import {
   supervisorRequest,
 } from "./runtime.js";
 
-function parse(argv) {
-  const result = { command: argv[0] ?? "dev", discovery: {}, env: {} };
+function parse(argv: string[]): CliOptions {
+  const result: CliOptions = { command: argv[0] ?? "dev", discovery: {}, env: {}, args: [] };
   let index = 1;
   if (argv[0]?.startsWith("-")) {
     result.command = "dev";
@@ -33,10 +34,12 @@ function parse(argv) {
   }
   for (; index < argv.length; index++) {
     const arg = argv[index];
+    if (!arg) continue;
     if (arg === "--") {
-      result.discovery.command = argv[++index];
+      const command = argv[++index];
+      if (command) result.discovery.command = command;
       result.discovery.args = argv.slice(index + 1);
-      if (!result.discovery.command)
+      if (!command)
         throw new Error("Expected a command after --.");
       break;
     }
@@ -66,7 +69,9 @@ function parse(argv) {
       const value = argv[++index];
       if (!value || value.startsWith("--"))
         throw new Error(`Missing value for ${arg}.`);
-      result[arg.slice(2)] = value;
+      const key = arg.slice(2) as keyof CliOptions;
+      if (["cwd", "config", "name", "script", "service", "from"].includes(arg.slice(2))) result[key] = value;
+      else if (arg === "--gateway-port") result[key] = Number(value);
     } else if (arg === "--json") result.json = true;
     else if (arg === "--auth-relay") result.authRelay = true;
     else if (["--help", "-h"].includes(arg)) result.command = "help";
@@ -107,6 +112,7 @@ async function main() {
     const allowed = new Set(["command", "cwd", "env", "discovery"]);
     if (Object.keys(options).some((key) => !allowed.has(key)) || options.discovery.script)
       throw new Error("exec accepts only --cwd, --env and a command after --. It uses the running environment.");
+    if (!options.discovery.command) throw new Error("Expected a command after --.");
     process.exitCode = await runClient({ cwd: options.cwd, command: options.discovery.command, args: options.discovery.args, env: options.env });
     return;
   }

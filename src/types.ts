@@ -14,7 +14,9 @@ export interface NormalizedManifest extends Manifest { schemaVersion: 1; gateway
 export interface PortlessPackage { scripts?: Record<string, string>; portless?: JsonValue; [key: string]: JsonValue | undefined; }
 export interface PortlessResult { name?: string; command: "vite" | "next"; args: string[]; }
 export interface ManifestSource { kind: string; path?: string; }
-export interface CliOptions { name?: string; "gateway-port"?: number; authRelay?: boolean; env: Record<string, string>; json?: boolean; cwd?: string; script?: string; from?: string; config?: string; migration?: string; dryRun?: boolean; service?: string; command?: string; args: string[]; }
+export interface DiscoveryOptions { command?: string | undefined; args?: string[] | undefined; script?: string | undefined; }
+export type CliOptionValue = string | number | boolean | Record<string, string> | DiscoveryOptions | string[] | undefined;
+export interface CliOptions { cwd: string; name?: string; "gateway-port"?: number; authRelay?: boolean; env: Record<string, string>; json?: boolean; cwd?: string; script?: string; from?: string; config?: string; migration?: string; dryRun?: boolean; service?: string; command?: string; args?: string[]; discovery: DiscoveryOptions; [key: string]: CliOptionValue; }
 export interface PublicState { instanceId: string; projectId: string; worktreeId: string; name: string; status: string; startedAt: string; urls: Record<string, string>; ports: Record<string, number>; }
 export interface EnvironmentDescriptor { schemaVersion: 1; kind: "benzo-environment"; projectId: string; worktreeId: string; instanceId: string; name: string; status: string; startedAt: string; owner: { kind: "benzo-launcher"; lifetime: "launcher-connection" }; services: Array<{ id: string; name: string; origin: string; upstream: { host: string; port: number }; readiness: "ready" | "not-ready" }>; }
 export interface ControlResponse extends JsonObject { protocol?: string; error?: string; ready?: boolean; socket?: import("node:net").Socket; }
