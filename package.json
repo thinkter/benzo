@@ -37,7 +37,7 @@
     "test:browser": "node --test .test-dist/test/browser/auth.test.js .test-dist/test/browser/frameworks.test.js .test-dist/test/browser/tls.test.js .test-dist/test/browser/form-post.test.js",
     "test:soak": "node --test .test-dist/test/lifecycle-soak.test.js",
     "test:compat": "node compatibility/run.mjs",
-    "lab:clients": "node --test compatibility/lab/clients.test.js",
+    "lab:clients": "node --test .test-dist/compatibility/lab/clients.test.js",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "pretest": "npm run test:types && npm run build:tests && tsc -p tsconfig.tools.json",

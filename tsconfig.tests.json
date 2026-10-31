@@ -5,10 +5,7 @@
     "outDir": ".test-dist",
     "declaration": false,
     "declarationMap": false,
-    "types": [
-      "node",
-      "bun"
-    ]
+    "types": ["node", "bun"]
   },
   "include": [
     "test/streaming.test.ts",
@@ -24,6 +21,7 @@
     "test/browser/frameworks.test.ts",
     "test/auth.test.ts",
     "test/core.test.ts",
-    "test/runtime.test.ts"
+    "test/runtime.test.ts",
+    "compatibility/lab/clients.test.ts"
   ]
 }
