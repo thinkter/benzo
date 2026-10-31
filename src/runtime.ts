@@ -70,7 +70,7 @@ export function supervisorRequest(
       },
       (response) => {
         let body = "";
-        response.on("data", (chunk) => {
+        response.on("data", (chunk: Buffer) => {
           body += chunk;
         });
         response.on("end", () => {
@@ -418,7 +418,7 @@ export async function runDev(
         [child.stdout, process.stdout],
         [child.stderr, process.stderr],
       ] as const)
-        pipe?.on("data", (chunk) => {
+        pipe?.on("data", (chunk: Buffer) => {
           logLine(chunk.toString(), undefined, stream);
           logLine(chunk.toString(), undefined, output);
         });

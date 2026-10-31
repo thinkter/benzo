@@ -17,6 +17,7 @@ import { associateManifest, removeAssociation } from "./association.js";
 import { runClient } from "./client.js";
 import { planProvenance } from "./plan.js";
 import { inspectPortless } from "./portless-plan.js";
+import { gatewayLaunch } from "./wire.js";
 import { runGateway } from "./daemon.js";
 import {
   liveState,
@@ -96,8 +97,14 @@ async function main() {
   const options = parse(process.argv.slice(2));
   if (options.command === "_gateway") {
     let input = "";
-    for await (const chunk of process.stdin) input += chunk;
-    await runGateway(JSON.parse(input));
+    await new Promise<void>((resolveInput, reject) => {
+      process.stdin.on("data", (chunk: Buffer) => {
+        input += chunk.toString();
+      });
+      process.stdin.once("end", resolveInput);
+      process.stdin.once("error", reject);
+    });
+    await runGateway(gatewayLaunch(input));
     return;
   }
   if (options.command === "help") return console.log(help);
@@ -436,7 +443,13 @@ if (
   existsSync(process.argv[1]) &&
   realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)
 )
-  main().catch((error) => {
-    console.error(`benzo: ${error.message}`);
-    process.exitCode = 1;
-  });
+  void (async () => {
+    try {
+      await main();
+    } catch (error) {
+      console.error(
+        `benzo: ${error instanceof Error ? error.message : "Command failed."}`,
+      );
+      process.exitCode = 1;
+    }
+  })();

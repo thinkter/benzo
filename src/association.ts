@@ -17,7 +17,7 @@ function associationPath(cwd: string): string {
 }
 
 export function associatedManifest(cwd: string): string | undefined {
-  let association;
+  let association: ReturnType<typeof readJson>;
   try {
     association = readJson(associationPath(cwd));
   } catch {

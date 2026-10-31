@@ -65,7 +65,7 @@ test(
           (res) => {
             clearInterval(sender);
             let body = "";
-            res.on("data", (data) => (body += data));
+            res.on("data", (data: Buffer) => (body += data));
             res.on("end", () => {
               req.destroy();
               resolve({
@@ -113,10 +113,11 @@ test(
         });
       } else {
         const chunks: Buffer[] = [];
-        for await (const chunk of req) {
-          if (!Buffer.isBuffer(chunk)) throw new Error("Expected buffer.");
-          chunks.push(chunk);
-        }
+        await new Promise<void>((resolve, reject) => {
+          req.on("data", (chunk: Buffer) => chunks.push(chunk));
+          req.once("end", resolve);
+          req.once("error", reject);
+        });
         res.writeHead(201).end(Buffer.concat(chunks));
       }
     });
@@ -133,7 +134,7 @@ test(
             },
             (res) => {
               let body = "";
-              res.on("data", (chunk) => {
+              res.on("data", (chunk: Buffer) => {
                 body += chunk;
                 if (body.includes("\n\n"))
                   resolve({ body, complete: res.complete });

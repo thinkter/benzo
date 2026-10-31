@@ -114,7 +114,7 @@ export async function acquireGateway(
             { stdio: ["pipe", "ignore", "pipe"] },
           );
           let diagnostic = "";
-          child.stderr?.on("data", (chunk) => {
+          child.stderr?.on("data", (chunk: Buffer) => {
             diagnostic = `${diagnostic}${chunk}`.slice(-2048);
           });
           childFailure = new Promise<Error>((accept) => {
@@ -391,7 +391,7 @@ export async function runGateway(config: GatewayLaunch) {
                 { flags: "a", mode: 0o600 },
               );
               for (const pipe of [child.stdout, child.stderr])
-                pipe?.on("data", (chunk) =>
+                pipe?.on("data", (chunk: Buffer) =>
                   stream.write(chunk.toString().replace(/\x1b\[[0-9;]*m/g, "")),
                 );
               const failBackend = () => {

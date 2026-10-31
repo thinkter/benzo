@@ -1,4 +1,9 @@
-import type { JsonValue, JsonObject, RuntimeState } from "./types.js";
+import type {
+  JsonValue,
+  JsonObject,
+  RuntimeState,
+  GatewayLaunch,
+} from "./types.js";
 
 export function jsonObject(text: string): JsonObject {
   const value = JSON.parse(text) as JsonValue;
@@ -71,4 +76,36 @@ export function supervisorState(text: string): Omit<RuntimeState, "token"> {
     status: textField(value["status"]),
     startedAt: textField(value["startedAt"]),
   };
+}
+
+// Only the private parent-to-daemon pipe uses this deliberately narrow schema.
+// Public gateway APIs continue accepting the full Node TLS option object.
+export function gatewayLaunch(source: string): GatewayLaunch {
+  const value = jsonObject(source);
+  const gateway = record(value["gateway"]);
+  const result: GatewayLaunch = {
+    gateway: {
+      port: portField(gateway["port"]),
+      controlPort: portField(gateway["controlPort"]),
+    },
+    ownerProject: textField(value["ownerProject"]),
+  };
+  if (value["transport"] !== undefined)
+    result.transport = textField(value["transport"]);
+  if (gateway["tls"] !== undefined) {
+    const tls = record(gateway["tls"]);
+    if (
+      Object.keys(tls).some(
+        (key) => !["cert", "key", "minVersion"].includes(key),
+      ) ||
+      tls["minVersion"] !== "TLSv1.2"
+    )
+      throw new Error("Unsupported private gateway TLS options.");
+    result.gateway.tls = {
+      cert: textField(tls["cert"]),
+      key: textField(tls["key"]),
+      minVersion: "TLSv1.2",
+    };
+  }
+  return result;
 }

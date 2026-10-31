@@ -8,7 +8,10 @@ const fail = (path: string, expected: string): never => {
 };
 const strings = (value: JsonValue | object | undefined): value is string[] =>
   Array.isArray(value) &&
-  value.every((entry): entry is string => typeof entry === "string");
+  value.every(
+    (entry: JsonValue | undefined): entry is string =>
+      typeof entry === "string",
+  );
 const commandShape = (value: Raw, path: string): void => {
   for (const key of ["command", "cwd"] as const)
     if (

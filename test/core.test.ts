@@ -792,3 +792,36 @@ test("control response rejects malformed declared fields", async () => {
     }
   }
 });
+
+test("private gateway launch validates serialized TLS without dropping options", async () => {
+  const { gatewayLaunch } = await import("#production/wire");
+  const launch = {
+    gateway: { port: 3000, controlPort: 3001 },
+    ownerProject: "/project",
+  };
+  assert.deepEqual(gatewayLaunch(JSON.stringify(launch)), launch);
+  const tls = {
+    cert: "certificate",
+    key: "private-key",
+    minVersion: "TLSv1.2",
+  };
+  assert.deepEqual(
+    gatewayLaunch(
+      JSON.stringify({ ...launch, gateway: { ...launch.gateway, tls } }),
+    ).gateway.tls,
+    tls,
+  );
+  for (const bad of [
+    null,
+    [],
+    { ...launch, ownerProject: [] },
+    { ...launch, transport: null },
+    { ...launch, gateway: { port: 0, controlPort: 3001 } },
+    {
+      ...launch,
+      gateway: { ...launch.gateway, tls: { ...tls, requestCert: true } },
+    },
+  ]) {
+    assert.throws(() => gatewayLaunch(JSON.stringify(bad)));
+  }
+});

@@ -1,3 +1,4 @@
+import { jsonObject } from "./wire.js";
 import type {
   IncomingMessage,
   ServerResponse,
@@ -352,8 +353,10 @@ export function createGateway({
           incoming.once("end", () => {
             if (size <= 65536) {
               try {
+                const url = jsonObject(Buffer.concat(collected).toString())["url"];
+                if (typeof url !== "string") return;
                 observe(
-                  JSON.parse(Buffer.concat(collected).toString()).url,
+                  url,
                   request,
                   routeAuth,
                   target,
@@ -388,7 +391,7 @@ export function createGateway({
       request.url.includes("\\")
     )
       return void response.writeHead(400).end("Invalid local request.");
-    let url;
+    let url: URL;
     try {
       url = new URL(request.url, "http://localhost");
     } catch {

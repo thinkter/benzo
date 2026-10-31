@@ -23,7 +23,7 @@ export function unwrapPortless(
   const words = source.trim().split(/\s+/);
   if (words.some((word) => !/^[a-zA-Z0-9_./:@=+-]+$/.test(word))) unsupported();
   words.shift();
-  let name;
+  let name: string | undefined;
   if (words[0] === "run") words.shift();
   else {
     name = words.shift();

@@ -32,7 +32,8 @@
     "noPropertyAccessFromIndexSignature": true,
     "allowUnusedLabels": false,
     "allowUnreachableCode": false,
-    "strictBuiltinIteratorReturn": true
+    "strictBuiltinIteratorReturn": true,
+    "noUncheckedSideEffectImports": true
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]

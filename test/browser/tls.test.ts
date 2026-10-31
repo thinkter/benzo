@@ -154,7 +154,9 @@ test(
               location.origin.replace("https:", "wss:"),
             );
             socket.onopen = () => socket.send("probe");
-            socket.onmessage = (event) => {
+            socket.onmessage = (
+              event: MessageEvent<string | Blob | ArrayBuffer>,
+            ) => {
               socket.close();
               const data: string | Blob | ArrayBuffer = event.data;
               if (typeof data !== "string")

@@ -25,7 +25,7 @@ export function launch(
   env = process.env,
   options: SpawnOptions = {},
 ): ChildProcess {
-  const paths = [];
+  const paths: string[] = [];
   let directory = resolve(cwd);
   for (;;) {
     paths.push(join(directory, "node_modules", ".bin"));

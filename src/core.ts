@@ -84,7 +84,7 @@ export function expand(value: string, context: Record<string, string>): string {
   return typeof value === "string"
     ? value.replace(
         /\{([a-zA-Z][a-zA-Z0-9_.-]*)\}/g,
-        (token, key) => context[key] ?? token,
+        (token: string, key: string) => context[key] ?? token,
       )
     : value;
 }

@@ -69,7 +69,7 @@ function request(
       },
       (response) => {
         let text = "";
-        response.on("data", (chunk) => (text += chunk));
+        response.on("data", (chunk: Buffer) => (text += chunk));
         response.on("end", () =>
           accept({
             status: response.statusCode,
