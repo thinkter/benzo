@@ -156,3 +156,5 @@ is intentionally `partial`, with other examples marked `not-run`; it does not
 replace or erase the failed full comparison. Older reports' `configured.result`
 inherited the overall comparison verdict. New reports calculate that field from
 selected original/Benzo/cleanup scenarios independently of competitor results.
+
+Reports carrying `evidenceScope.status: historical` describe the pre-TypeScript JavaScript implementation. Their original hashes and outcomes are preserved; they do not validate the current checkout. Use the recorded historical revision to inspect those source paths. Fresh TypeScript benchmark results are still pending.

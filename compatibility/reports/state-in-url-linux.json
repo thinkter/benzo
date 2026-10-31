@@ -240,5 +240,11 @@
     "version": "0.15.5"
   },
   "sourceUnchanged": true,
-  "scope": "Eight example apps; upstream root Wireit orchestration and literal-origin upstream E2E suite are not replaced. Assertions are adapted from upstream, not the entire upstream test suite."
+  "scope": "Eight example apps; upstream root Wireit orchestration and literal-origin upstream E2E suite are not replaced. Assertions are adapted from upstream, not the entire upstream test suite.",
+  "evidenceScope": {
+    "status": "historical",
+    "reason": "Recorded before the TypeScript migration; source paths and build hashes describe the original JavaScript checkout, not the current implementation. No benchmark rerun is implied.",
+    "sourceRevision": "ddf5655",
+    "validatesCurrentCheckout": false
+  }
 }

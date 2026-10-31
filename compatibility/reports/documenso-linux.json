@@ -145,5 +145,11 @@
   "reproduction": "pnpm test:compat documenso",
   "discovery": "unsupported",
   "discoveryDiagnostic": "The dev script starts an orchestrator. Use an external Benzo config to describe its services; Benzo will not guess their ports or alter this application.",
-  "reason": "Missing usable docker. Documented Docker/PostgreSQL setup, migrations, translation compilation and test-only auth configuration. No baseline has been established on this host."
+  "reason": "Missing usable docker. Documented Docker/PostgreSQL setup, migrations, translation compilation and test-only auth configuration. No baseline has been established on this host.",
+  "evidenceScope": {
+    "status": "historical",
+    "reason": "Recorded before the TypeScript migration; source paths and build hashes describe the original JavaScript checkout, not the current implementation. No benchmark rerun is implied.",
+    "sourceRevision": "ddf5655",
+    "validatesCurrentCheckout": false
+  }
 }

@@ -179,5 +179,11 @@
       "::1"
     ]
   },
-  "listenerCleanup": "passed"
+  "listenerCleanup": "passed",
+  "evidenceScope": {
+    "status": "historical",
+    "reason": "Recorded before the TypeScript migration; source paths and build hashes describe the original JavaScript checkout, not the current implementation. No benchmark rerun is implied.",
+    "sourceRevision": "ddf5655",
+    "validatesCurrentCheckout": false
+  }
 }
