@@ -206,3 +206,59 @@ for (const [signal, code] of [
     },
   );
 }
+
+test(
+  "shutdown waits for resistant grandchildren after their launcher exits",
+  {
+    skip: process.platform === "win32",
+    timeout: 20000,
+  },
+  async () => {
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const cwd = await mkdtemp(join(tmpdir(), "benzo-watch-tree-"));
+    let watcher: ReturnType<typeof watchTests> | undefined;
+    try {
+      await writeFile(
+        join(cwd, "grandchild.cjs"),
+        `
+      process.on("SIGTERM", () => {});
+      require("node:fs").writeFileSync("grandchild-pid", String(process.pid));
+      setInterval(() => {}, 1000);
+    `,
+      );
+      await writeFile(
+        join(cwd, "child.cjs"),
+        `
+      require("node:child_process").spawn(process.execPath, ["grandchild.cjs"], {stdio: "ignore"});
+      setInterval(() => {}, 1000);
+    `,
+      );
+      watcher = watchTests({
+        cwd,
+        command: process.execPath,
+        args: ["child.cjs"],
+        paths: ["child.cjs"],
+        report: () => {},
+      });
+      const pid = Number(await waitForFile(join(cwd, "grandchild-pid")));
+      await watcher.close();
+      // Orphans may remain as zombies under a container init that does not reap.
+      // They must have stopped executing when close resolves, with no grace delay.
+      const { stdout } = await promisify(execFile)("ps", [
+        "-A",
+        "-o",
+        "pid=",
+        "-o",
+        "stat=",
+      ]);
+      const entry = stdout
+        .split("\n")
+        .find((line) => Number(line.trim().split(/\s+/)[0]) === pid);
+      if (entry) assert.match(entry.trim().split(/\s+/)[1] ?? "", /^[ZX]/);
+    } finally {
+      await watcher?.close();
+      await rm(cwd, { recursive: true, force: true });
+    }
+  },
+);

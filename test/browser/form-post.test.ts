@@ -1,3 +1,10 @@
+import type { Server, IncomingMessage } from "node:http";
+import type { Browser } from "@playwright/test";
+function portOf(server: Server): number {
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  return address.port;
+}
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
@@ -6,22 +13,24 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
-import { createGateway } from "../../dist/core.js";
-import { tlsFixture } from "../../.test-dist/test/tls-fixture.js";
+import { createGateway } from "#production/core";
+import { tlsFixture } from "../tls-fixture.js";
 
-const listen = (server) =>
-  new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const close = (server) =>
-  new Promise((resolve) => {
-    server.close(resolve);
+const listen = (server: Server) =>
+  new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+const close = (server: Server) =>
+  new Promise<void>((resolve) => {
+    server.close(() => resolve());
     server.closeAllConnections();
   });
-const body = async (request) => {
-  const chunks = [];
-  for await (const chunk of request) chunks.push(chunk);
-  return Buffer.concat(chunks).toString();
-};
-const challenge = (value) =>
+const body = (request: IncomingMessage): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.once("end", () => resolve(Buffer.concat(chunks).toString()));
+    request.once("error", reject);
+  });
+const challenge = (value: string) =>
   createHash("sha256").update(value).digest("base64url");
 
 test(
@@ -29,16 +38,22 @@ test(
   { timeout: 30000 },
   async () => {
     const directory = await mkdtemp(join(tmpdir(), "benzo-form-post-"));
-    let provider, app, gateway, browser;
+    let provider: Server | undefined;
+    let app: Server | undefined;
+    let gateway: ReturnType<typeof createGateway> | undefined;
+    let browser: Browser | undefined;
     try {
       const tls = await tlsFixture(directory);
-      let fixedCallback;
-      const codes = new Map(),
-        pending = new Map(),
-        expectedForms = new Map();
+      let fixedCallback: string;
+      const codes = new Map<string, { challenge: string | null }>(),
+        pending = new Map<
+          string,
+          { verifier: string; host: string | undefined }
+        >(),
+        expectedForms = new Map<string, string>();
       let validated = 0;
       provider = createServer(async (req, res) => {
-        const url = new URL(req.url, "http://provider");
+        const url = new URL(req.url ?? "/", "http://provider");
         if (url.pathname === "/authorize") {
           if (
             url.searchParams.get("redirect_uri") !== fixedCallback ||
@@ -47,6 +62,7 @@ test(
             return res.writeHead(400).end();
           const state = url.searchParams.get("state"),
             code = randomUUID();
+          assert.ok(state);
           codes.set(code, {
             challenge: url.searchParams.get("code_challenge"),
           });
@@ -69,7 +85,7 @@ test(
         }
         if (url.pathname === "/token") {
           const parameters = new URLSearchParams(await body(req));
-          const record = codes.get(parameters.get("code"));
+          const record = codes.get(parameters.get("code") ?? "");
           if (
             !record ||
             record.challenge !==
@@ -77,22 +93,22 @@ test(
             parameters.get("redirect_uri") !== fixedCallback
           )
             return res.writeHead(400).end();
-          codes.delete(parameters.get("code"));
+          codes.delete(parameters.get("code") ?? "");
           validated++;
           return res
             .writeHead(200, { "content-type": "application/json" })
             .end('{"access_token":"fixture-only"}');
         }
-        res.writeHead(404).end();
+        return res.writeHead(404).end();
       });
       await listen(provider);
-      const providerOrigin = `http://127.0.0.1:${provider.address().port}`;
+      const providerOrigin = `http://127.0.0.1:${portOf(provider)}`;
       app = createServer(async (req, res) => {
-        const url = new URL(req.url, "http://app");
+        const url = new URL(req.url ?? "/", "http://app");
         if (url.pathname === "/start") {
           const state = randomUUID(),
             verifier = randomUUID();
-          pending.set(state, { verifier, host: req.headers.host });
+          pending.set(state, { verifier, host: req.headers["host"] });
           const authorization = new URL(`${providerOrigin}/authorize`);
           for (const [key, value] of Object.entries({
             state,
@@ -113,11 +129,12 @@ test(
           const raw = await body(req),
             parameters = new URLSearchParams(raw),
             state = parameters.get("state");
-          const record = pending.get(state);
+          const record = pending.get(state ?? "");
           if (
+            !record ||
             req.method !== "POST" ||
-            raw !== expectedForms.get(state) ||
-            record?.host !== req.headers.host
+            raw !== expectedForms.get(state ?? "") ||
+            record?.host !== req.headers["host"]
           )
             return res.writeHead(400).end("form mismatch");
           if (!req.headers.cookie?.split("; ").includes(`oauth_state=${state}`))
@@ -125,18 +142,18 @@ test(
           const token = await fetch(`${providerOrigin}/token`, {
             method: "POST",
             body: new URLSearchParams({
-              code: parameters.get("code"),
+              code: parameters.get("code") ?? "",
               code_verifier: record.verifier,
               redirect_uri: fixedCallback,
             }),
           });
           if (!token.ok) return res.writeHead(403).end("PKCE failed");
-          pending.delete(state);
+          pending.delete(state ?? "");
           return res
             .writeHead(302, {
               location: fixedCallback.replace("/callback", "/signed-in"),
               "set-cookie": [
-                `session=${req.headers.host.split(".")[0]}; Secure; HttpOnly; SameSite=None; Path=/`,
+                `session=${(req.headers["host"] ?? "").split(".")[0]}; Secure; HttpOnly; SameSite=None; Path=/`,
                 "oauth_state=; Max-Age=0; Secure; HttpOnly; SameSite=None; Path=/",
               ],
             })
@@ -144,7 +161,7 @@ test(
         }
         if (url.pathname === "/session")
           return res.end(req.headers.cookie ?? "");
-        res
+        return res
           .writeHead(200, { "content-type": "text/html" })
           .end(
             '<a id="login" href="/start">Login</a><a id="lax" href="/start?lax=1">Lax login</a>',
@@ -155,12 +172,12 @@ test(
         port: 0,
         tls: { cert: tls.cert, key: tls.key },
         routes: new Map([
-          ["feature.localhost", app.address().port],
-          ["second.localhost", app.address().port],
+          ["feature.localhost", portOf(app)],
+          ["second.localhost", portOf(app)],
         ]),
       });
       await gateway.listen();
-      const port = gateway.server.address().port;
+      const port = portOf(gateway.server);
       fixedCallback = `https://localhost:${port}/callback`;
       const spki = createHash("sha256")
         .update(
@@ -192,11 +209,11 @@ test(
           );
           const cookies = await context.cookies(origin);
           assert.equal(
-            cookies.find((cookie) => cookie.name === "session").secure,
+            cookies.find((cookie) => cookie.name === "session")?.secure,
             true,
           );
           assert.equal(
-            cookies.find((cookie) => cookie.name === "session").sameSite,
+            cookies.find((cookie) => cookie.name === "session")?.sameSite,
             "None",
           );
         }),
@@ -217,7 +234,7 @@ test(
       assert.equal(
         (await isolated.cookies(origin)).find(
           (cookie) => cookie.name === "oauth_state",
-        ).sameSite,
+        )?.sameSite,
         "Lax",
       );
       assert.equal(

@@ -1,3 +1,10 @@
+import type { Server } from "node:http";
+import type { Browser } from "@playwright/test";
+function portOf(server: Server): number {
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  return address.port;
+}
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
@@ -6,18 +13,20 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
-import { createGateway } from "../../dist/core.js";
-import { tlsFixture } from "../../.test-dist/test/tls-fixture.js";
+import { createGateway } from "#production/core";
+import { tlsFixture } from "../tls-fixture.js";
 
 test(
   "HTTPS browser origins retain Secure cookies, Refresh navigation and encrypted WebSockets",
   { timeout: 30000 },
   async () => {
     const directory = await mkdtemp(join(tmpdir(), "benzo-browser-tls-"));
-    let app, gateway, browser;
+    let app: Server | undefined;
+    let gateway: ReturnType<typeof createGateway> | undefined;
+    let browser: Browser | undefined;
     try {
       const tls = await tlsFixture(directory);
-      let port;
+      let port: number;
       app = createServer((req, res) => {
         if (req.url === "/refresh")
           return res
@@ -30,9 +39,9 @@ test(
         if (req.url === "/set")
           res.setHeader(
             "set-cookie",
-            `session=${req.headers.host.split(".")[0]}; Secure; HttpOnly; SameSite=Lax; Path=/`,
+            `session=${(req.headers["host"] ?? "").split(".")[0]}; Secure; HttpOnly; SameSite=Lax; Path=/`,
           );
-        res
+        return res
           .writeHead(200, { "content-type": "text/html" })
           .end(
             '<title>TLS fixture</title><a href="/refresh" id="refresh">Refresh redirect</a>',
@@ -48,17 +57,29 @@ test(
           `HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`,
         );
         let pending = Buffer.alloc(0);
-        socket.on("data", (chunk) => {
+        socket.on("data", (chunk: Buffer): void => {
           pending = Buffer.concat([pending, chunk]);
           if (pending.length < 6) return;
-          const length = pending[1] & 127;
-          if (length >= 126 || !(pending[1] & 128)) return socket.destroy();
+          const flags = pending[0],
+            size = pending[1];
+          assert.ok(flags !== undefined && size !== undefined);
+          const length = size & 127;
+          if (length >= 126 || !(size & 128)) {
+            socket.destroy();
+            return;
+          }
           if (pending.length < length + 6) return;
-          if ((pending[0] & 15) === 8)
-            return socket.end(Buffer.from([0x88, 0]));
+          if ((flags & 15) === 8) {
+            socket.end(Buffer.from([0x88, 0]));
+            return;
+          }
           const decoded = Buffer.from(pending.subarray(6, 6 + length));
-          for (let index = 0; index < decoded.length; index++)
-            decoded[index] ^= pending[2 + (index % 4)];
+          for (let index = 0; index < decoded.length; index++) {
+            const byte = decoded[index],
+              mask = pending[2 + (index % 4)];
+            assert.ok(byte !== undefined && mask !== undefined);
+            decoded[index] = byte ^ mask;
+          }
           const reply = Buffer.from(
             `${req.headers["x-forwarded-proto"]}:${decoded}`,
           );
@@ -70,17 +91,19 @@ test(
         socket.on("end", () => socket.end());
         socket.on("error", () => socket.destroy());
       });
-      await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+      await new Promise<void>((resolve) =>
+        app?.listen(0, "127.0.0.1", resolve),
+      );
       gateway = createGateway({
         port: 0,
         tls: { cert: tls.cert, key: tls.key },
         routes: new Map([
-          ["feature.localhost", app.address().port],
-          ["second.localhost", app.address().port],
+          ["feature.localhost", portOf(app)],
+          ["second.localhost", portOf(app)],
         ]),
       });
       await gateway.listen();
-      port = gateway.server.address().port;
+      port = portOf(gateway.server);
       // Scoped test-only exception, NOT evidence of OS/browser CA trust.
       const spki = createHash("sha256")
         .update(
@@ -114,8 +137,8 @@ test(
         ),
         "session=second",
       );
-      assert.equal((await context.cookies(origin))[0].secure, true);
-      assert.equal((await context.cookies(origin))[0].httpOnly, true);
+      assert.equal((await context.cookies(origin))[0]?.secure, true);
+      assert.equal((await context.cookies(origin))[0]?.httpOnly, true);
       await first.click("#refresh");
       await first.waitForURL(`${origin}/done`);
       assert.equal(
@@ -126,14 +149,17 @@ test(
       );
       const echo = await first.evaluate(
         () =>
-          new Promise((resolve, reject) => {
+          new Promise<string>((resolve, reject) => {
             const socket = new WebSocket(
               location.origin.replace("https:", "wss:"),
             );
             socket.onopen = () => socket.send("probe");
             socket.onmessage = (event) => {
               socket.close();
-              resolve(event.data);
+              const data: string | Blob | ArrayBuffer = event.data;
+              if (typeof data !== "string")
+                reject(new Error("Expected text WebSocket frame"));
+              else resolve(data);
             };
             socket.onerror = () => reject(new Error("WebSocket failed"));
           }),
@@ -143,9 +169,9 @@ test(
       await browser?.close();
       await gateway?.close();
       if (app)
-        await new Promise((resolve) => {
-          app.close(resolve);
-          app.closeAllConnections();
+        await new Promise<void>((resolve) => {
+          app?.close(() => resolve());
+          app?.closeAllConnections();
         });
       await rm(directory, { recursive: true, force: true });
     }

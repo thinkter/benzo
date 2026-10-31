@@ -1,4 +1,6 @@
 import type { ChildProcess, SpawnOptions } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import crossSpawn from "cross-spawn";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -80,5 +82,42 @@ export async function stop(
   } while (Date.now() < deadline);
   try {
     process.kill(-pid, "SIGKILL");
-  } catch {}
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ESRCH")
+      return;
+    throw error;
+  }
+  // Signal delivery is asynchronous. The launcher can already be gone while
+  // grandchildren are still exiting. Zombies own no listeners and cannot run;
+  // waiting for their parent/init to reap them would make cleanup unbounded.
+  const killedDeadline = Date.now() + 5000;
+  while (await groupHasRunningProcesses(pid)) {
+    if (Date.now() >= killedDeadline)
+      throw new Error(`Process group ${pid} did not terminate after SIGKILL.`);
+    await delay(20);
+  }
+}
+
+async function groupHasRunningProcesses(group: number): Promise<boolean> {
+  try {
+    process.kill(-group, 0);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ESRCH")
+      return false;
+    throw error;
+  }
+  const { stdout } = await promisify(execFile)(
+    "ps",
+    ["-A", "-o", "pgid=", "-o", "stat="],
+    { timeout: 2000 },
+  );
+  return stdout.split("\n").some((line) => {
+    const [pgid, state] = line.trim().split(/\s+/);
+    return (
+      Number(pgid) === group &&
+      state !== undefined &&
+      !state.startsWith("Z") &&
+      !state.startsWith("X")
+    );
+  });
 }
