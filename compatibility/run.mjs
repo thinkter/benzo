@@ -1,7 +1,7 @@
 // Reproducible trials use installed package contents, unchanged upstream source,
 // real Git worktrees and real browser DNS. Raw output stays in the ignored cache.
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -12,7 +12,7 @@ import {
 } from "node:fs";
 import { readFile, writeFile, rm, appendFile } from "node:fs/promises";
 import { resolve, join, delimiter, dirname } from "node:path";
-import { createServer } from "node:net";
+import { createServer, createConnection } from "node:net";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "@playwright/test";
@@ -37,7 +37,7 @@ const env = {
   BROWSER: "none",
   HUSKY: "0",
   SHARP_IGNORE_GLOBAL_LIBVIPS: "1",
-  BENZO_HOME: join(cache, "home"),
+  BENZO_HOME: join(cache, `bench-home-${randomUUID()}`),
   PATH: [
     join(cache, "consumer-tools/node_modules/.bin"),
     join(cache, "tools/node_modules/.bin"),
@@ -139,6 +139,52 @@ async function freePort() {
   await new Promise((resolve) => server.close(resolve));
   return port;
 }
+async function refusesConnection(port) {
+  return new Promise((resolve) => {
+    const socket = createConnection({ host: "127.0.0.1", port });
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.once("error", (error) => resolve(error.code === "ECONNREFUSED"));
+    socket.setTimeout(1000, () => {
+      socket.destroy();
+      resolve(false);
+    });
+  });
+}
+async function auditRejectedBare(checkout, report) {
+  report.bare = { argv: [], cwd: "repository-root", result: "running" };
+  const child = background(
+    join(cache, "install/node_modules/.bin/benzo"),
+    [],
+    checkout,
+  );
+  try {
+    await waitFor(
+      () =>
+        child.exitCode !== null ||
+        child.signalCode !== null ||
+        child.startupError,
+      15000,
+    );
+    assert.equal(
+      child.exitCode,
+      1,
+      "Expected discovery refusal, not successful application startup",
+    );
+    assert.match(child.output, /script starts an orchestrator/);
+    report.bare.result = "unsupported";
+    report.bare.exitCode = child.exitCode;
+    report.bare.reason =
+      "Root script is an orchestrator; no automatic adaptation is attempted.";
+  } catch {
+    report.bare.result = "failed";
+    report.bare.reason = "Unexpected exit or timeout; see private logs.";
+  } finally {
+    await stop(child);
+  }
+}
 async function packageBuild() {
   await run("pnpm", ["pack", "--pack-destination", cache]);
   const tarball = join(cache, "benzo-0.1.0.tgz");
@@ -237,6 +283,7 @@ async function excalidraw(recipe, checkout, report) {
   let browser;
   const children = [];
   const worktrees = [];
+  const listenerPorts = [];
   try {
     browser = await chromium.launch({ headless: true });
     const baselineContext = await browser.newContext();
@@ -264,6 +311,49 @@ async function excalidraw(recipe, checkout, report) {
     await baselineContext.close();
     await stop(baseline);
     baseline = undefined;
+    // A literal no-argument invocation is a separate acceptance lane. Custom
+    // gateway flags below must never be reported as proof that bare Benzo works.
+    report.bare = { argv: [], cwd: "repository-root", result: "running" };
+    const bareContext = await browser.newContext();
+    let bare;
+    try {
+      bare = background(
+        join(cache, "install/node_modules/.bin/benzo"),
+        [],
+        checkout,
+      );
+      const state = await waitFor(async () => {
+        if (bare.startupError || bare.exitCode !== null)
+          throw Object.assign(
+            new Error(
+              "Bare Benzo exited before readiness; inspect private service logs.",
+            ),
+            { fatal: true },
+          );
+        return getState(checkout);
+      }, 45000);
+      listenerPorts.push(...Object.values(state.ports));
+      assert.equal(new URL(state.urls.web).port, "3000");
+      await journey(await bareContext.newPage(), state.urls.web);
+      report.bare.result = "passed";
+      report.scenarios.push({
+        case: "bare-root-browser-drawing",
+        result: "passed",
+      });
+    } catch (error) {
+      report.bare.result = "failed";
+      report.bare.reason = error.message.replaceAll(cache, "<cache>");
+    } finally {
+      await bareContext.close();
+      if (bare) {
+        await stop(bare);
+        await waitFor(async () => !(await getState(checkout)), 15000);
+      }
+    }
+    report.configured = {
+      argv: ["dev", "--cwd", "<worktree>", "--gateway-port", "<allocated>"],
+      result: "running",
+    };
     for (const label of ["a", "b"]) {
       const cwd = join(cache, "worktrees", `excalidraw-${label}`, "feature");
       if (!existsSync(join(cwd, ".git")))
@@ -298,6 +388,7 @@ async function excalidraw(recipe, checkout, report) {
         ),
       );
       states.push(await waitFor(() => getState(cwd)));
+      listenerPorts.push(...Object.values(states.at(-1).ports));
     }
     assert.equal(states[0].name, "feature");
     assert.equal(states[1].name, "feature-2");
@@ -365,6 +456,7 @@ async function excalidraw(recipe, checkout, report) {
         ).trim(),
         "",
       );
+    report.configured.result = "passed";
     report.sourceUnchanged = true;
     report.applicationChangesRequired = false;
     report.result = "passed";
@@ -376,6 +468,9 @@ async function excalidraw(recipe, checkout, report) {
       );
     await Promise.all(children.map((child) => stop(child)));
     await browser?.close();
+    for (const port of listenerPorts)
+      await waitFor(() => refusesConnection(port), 15000);
+    report.listenerCleanup = "passed";
   }
 }
 await packageBuild();
@@ -393,12 +488,18 @@ for (const recipe of recipes.filter(
     repository: recipe.repository,
     commit: recipe.commit,
     benzoBuild: build,
+    harnessSha256: createHash("sha256")
+      .update(readFileSync(join(root, "compatibility/run.mjs")))
+      .update(readFileSync(join(root, "compatibility/consumers.mjs")))
+      .digest("hex"),
     testedAt: new Date().toISOString(),
     platform: {
       os: process.platform,
       architecture: process.arch,
       node: process.version,
     },
+    bare: { argv: [], cwd: "repository-root", result: "not-run" },
+    configured: { result: "not-run" },
     baseline: "not-run",
     result: "not-run",
     applicationChangesRequired: null,
@@ -421,6 +522,7 @@ for (const recipe of recipes.filter(
         `${JSON.stringify(report, null, 2)}\n`,
       ),
   });
+  await report.onScenario();
   try {
     const checkout = join(cache, recipe.name);
     if (!existsSync(join(checkout, ".git"))) {
@@ -438,6 +540,17 @@ for (const recipe of recipes.filter(
       recipe.commit,
       "Cached project must match pinned commit.",
     );
+    assert.equal(
+      (
+        await run(
+          "git",
+          ["status", "--short", "--untracked-files=all"],
+          checkout,
+        )
+      ).trim(),
+      "",
+      "Refusing a dirty consumer checkout",
+    );
     try {
       loadManifest(checkout);
       report.discovery = "passed";
@@ -445,6 +558,12 @@ for (const recipe of recipes.filter(
       report.discovery = "unsupported";
       report.discoveryDiagnostic = error.message;
     }
+    if (
+      report.discovery === "unsupported" &&
+      /script starts an orchestrator/.test(report.discoveryDiagnostic)
+    )
+      await auditRejectedBare(checkout, report);
+    await report.onScenario();
     for (const tool of recipe.requiredTools) {
       try {
         await run(tool, ["version"], root, 10000);
@@ -484,6 +603,16 @@ for (const recipe of recipes.filter(
     report.result = report.baseline === "passed" ? "failed" : "blocked";
     report.reason = error.message.replaceAll(cache, "<cache>");
   }
+  if (report.bare?.result === "failed" && report.result === "passed") {
+    report.result = "failed";
+    report.reason =
+      "Configured journeys passed, but the bare-root lane failed.";
+    failed = true;
+  }
+  if (report.configured?.result === "running")
+    report.configured.result = "failed";
+  if (report.result === "blocked" && report.configured?.result === "not-run")
+    report.configured = { result: "blocked", reason: report.reason };
   report.execution = cancellation.signal.aborted ? "interrupted" : "completed";
   writeFileSync(
     join(reports, `${recipe.name}-${process.platform}.json`),

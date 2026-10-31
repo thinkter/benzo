@@ -26,3 +26,18 @@ test("replacement acceptance never treats missing, blocked or failed cases as pa
     "Repeated attempts cannot hide a failure",
   );
 });
+
+test("Sokosumi prerequisites are blocked evidence rather than a fictitious TLS failure", async () => {
+  const { sokosumi } = await import("../compatibility/consumers.mjs");
+  const report = { scenarios: [] };
+  await sokosumi({ report });
+  assert.equal(report.result, "blocked");
+  assert.equal(report.replacement, "not-established");
+  assert.equal(
+    report.scenarios.some(
+      (entry) => entry.result === "passed" || entry.result === "failed",
+    ),
+    false,
+  );
+  assert.equal(report.scenarios[0].runtimeJourneyExecuted, false);
+});

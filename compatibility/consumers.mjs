@@ -473,6 +473,20 @@ export async function stateInUrl(h) {
         )
       ? "partial"
       : "passed";
+  report.configured = {
+    result: report.result,
+    scope: "selected example apps, not the repository root",
+    selectedApps: selected,
+    argv: [
+      "dev",
+      "--cwd",
+      "<example-worktree>",
+      "--name",
+      "<example-name>",
+      "--gateway-port",
+      "<allocated>",
+    ],
+  };
   report.replacement = replacementVerdict(
     report.scenarios,
     examples.flatMap((app) => [
@@ -490,16 +504,16 @@ export async function stateInUrl(h) {
 export async function sokosumi({ report }) {
   report.result = "blocked";
   report.reason =
-    "No isolated PostgreSQL/auth baseline established; consumer also explicitly requires trusted HTTPS on port 443, which Benzo does not implement.";
+    "No isolated PostgreSQL/auth baseline established; trusted browser HTTPS on port 443 has not been validated for this consumer. Benzo supports user-supplied TLS certificates.";
   report.scenarios.push(
     {
       case: "complete-origin-preservation",
-      result: "failed",
-      evidence: "pinned-wrapper-source-and-missing-benzo-tls-capability",
+      result: "blocked",
+      evidence: "consumer-trust-and-backend-prerequisites-unverified",
       runtimeJourneyExecuted: false,
-      category: "missing-tls",
+      category: "unverified-trust-and-backend",
       expected: "https://web.sokosumi.localhost on implicit 443",
-      actual: "Benzo currently exposes HTTP origins only",
+      actual: "HTTPS transport exists; this consumer journey has not run",
     },
     {
       case: "login-core-web-session-isolation",
