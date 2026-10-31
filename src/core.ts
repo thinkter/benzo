@@ -38,7 +38,7 @@ export function availableName(
 }
 export function namedOrigin(
   name: string,
-  service: string | undefined,
+  service?: string,
   port = 3000,
   protocol = "http",
 ): string {

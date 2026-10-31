@@ -3,7 +3,7 @@ import type { CliOptions, ManifestInput, ManifestSource } from "./types.js";
 export function planProvenance(
   input: ManifestInput,
   source: ManifestSource,
-  options: CliOptions,
+  options: Pick<CliOptions, "env" | "name" | "gateway-port" | "authRelay">,
   inherited: NodeJS.ProcessEnv = process.env,
 ) {
   const selected = source.kind;

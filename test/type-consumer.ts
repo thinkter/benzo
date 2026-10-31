@@ -1,5 +1,6 @@
 import {
   namedOrigins,
+  namedOrigin,
   logLine,
   type ManifestInput,
   type EnvironmentDescriptor,
@@ -26,3 +27,6 @@ function snapshot(state: RuntimeState): string {
 }
 void optionalStatus;
 void snapshot;
+
+const defaultOrigin: string = namedOrigin("feature");
+void defaultOrigin;
