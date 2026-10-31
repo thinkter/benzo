@@ -10,7 +10,7 @@ import {
   scenario,
   replacementVerdict,
   configuredVerdict,
-} from "./acceptance.mjs";
+} from "../.tools-dist/compatibility/acceptance.js";
 
 const examples = [
   "react",

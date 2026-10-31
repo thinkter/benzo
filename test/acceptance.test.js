@@ -4,7 +4,7 @@ import {
   scenario,
   replacementVerdict,
   configuredVerdict,
-} from "../compatibility/acceptance.mjs";
+} from "../.tools-dist/compatibility/acceptance.js";
 
 test("replacement acceptance never treats missing, blocked or failed cases as passes", async () => {
   const report = { scenarios: [] };
