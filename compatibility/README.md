@@ -133,3 +133,14 @@ CLI for the other pinned recipes, even when backend prerequisites are unavailabl
 state-in-url results are per-example scenarios; Docker/auth prerequisites block
 the other functional journeys. No backend or orchestrator features are added to
 Benzo to make these trials pass. Raw logs remain under ignored `.compat`.
+
+Reports with `harnessInputs` fingerprint every top-level compatibility `.mjs`
+module (including scenario/verdict and evidence helpers), every `src/*.js`
+runtime helper, the pinned project recipes, and the Benzo package/lock manifests.
+Each entry records a relative path and its SHA-256; `harnessSha256` hashes the
+compact JSON encoding of that sorted entry list. Older reports without this
+manifest use the earlier, narrower fingerprint and are historical evidence.
+Excalidraw's `cleanupScope` records the checked listener classes: baseline and
+application services on IPv4, gateway control ports on IPv4, and gateway HTTP
+listeners on both IPv4 and IPv6. A live listener, timeout or non-refusal network
+error prevents a cleanup pass.
