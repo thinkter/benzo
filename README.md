@@ -1,12 +1,11 @@
 # Benzo
 
-## One localhost for every worktree
+## Run every branch at the same time
 
-Git worktrees let you keep several branches open at once. Local development
-usually does not: every checkout wants the same port, callback URL, and browser
-session.
+Normally, two copies of the same app both try to use `localhost:3000`. You have
+to stop one before you can open the other.
 
-Benzo gives every worktree its own named URL:
+Benzo gives each branch its own link:
 
 ```text
 http://main.localhost:3000
@@ -14,22 +13,17 @@ http://payments.localhost:3000
 http://payments-2.localhost:3000
 ```
 
-Start a branch, open its URL, and leave it running. Start another branch beside
-it. Compare them without stopping servers, editing application code, or teaching
-the whole team a new workflow.
+Run both branches, open both links, and compare them side by side. Stop one
+without stopping the other.
 
-Authentication comes along with it. For the usual localhost setup, sign-in,
-sign-out, cookies, and supported local OAuth callbacks work out of the box and
-stay on the worktree that started them. You do not need to add callback URLs at
-the provider or change the application's auth setup just to try another branch.
-[Auth compatibility](docs/auth-compatibility.md) covers the small set of
-applications with hard-coded origin rules.
+Login works normally too. Sign-in and sign-out stay on the branch you are using.
+You do not need to change your Google/GitHub setup or edit the app just to try
+another branch. See [auth compatibility](docs/auth-compatibility.md) if the app
+has unusual auth rules.
 
-- Review a branch while your current work stays live.
-- Compare two versions side by side.
-- Keep each worktree on its own browser origin.
-- Stop one worktree without taking down the others.
-- Give tests the URL for the environment they are actually using.
+Benzo is optional. You can use it in your own copy of the project while the rest
+of the team keeps using `pnpm dev`. No shared script changes and no team
+migration.
 
 ## Try it
 
@@ -40,10 +34,8 @@ pnpm add -D /absolute/path/to/benzo
 pnpm exec benzo dev
 ```
 
-Benzo starts the project’s existing `dev` command and prints the worktree URL.
-If the root package has no `dev` or `start`, it checks nested packages. One
-candidate is selected automatically; several candidates are shown so you can
-choose one.
+Benzo starts the project’s normal `dev` command and prints your link. No app
+changes are needed.
 
 Run a command directly when you prefer:
 
@@ -73,16 +65,14 @@ benzo dev --cwd ../payments --name payments
 Names are kept stable when possible. If a name is already active, Benzo adds a
 suffix. Additional services get subdomains such as `api.payments.localhost`.
 
-## It fits around your project
+## Use it when you need it
 
-Benzo is an optional layer around local development. It does not edit source
-files, package scripts, environment files, or hosts files. A teammate can keep
-using the normal project command while you use Benzo in another worktree.
+Benzo does not edit source files, package scripts, environment files, or hosts
+files. Install it globally and use it only when you want these links. Everyone
+else can keep running `pnpm dev` as usual.
 
-This is per-developer adoption. You can install Benzo globally and use it only
-when you want named worktree URLs. Everyone else can keep running `pnpm dev` as
-usual. Portless-style adoption changes the project's shared command or config,
-which makes the migration a team decision; Benzo does not require that.
+Unlike Portless, Benzo does not require the project or the whole team to migrate.
+It is a tool one developer can turn on for one branch.
 
 Most projects need no configuration. For multiple services or an existing
 orchestrator, use a manifest or the SDK. Benzo owns the named route; your
