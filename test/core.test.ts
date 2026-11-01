@@ -283,6 +283,10 @@ test("zero-config discovery preserves scripts and applies documented framework f
       join(nested, "package.json"),
       JSON.stringify({ scripts: { dev: "next dev" } }),
     );
+    const workspace = discoverManifest(directory);
+    assert.equal(workspace.discovery, "workspace");
+    assert.equal(workspace.services[0]?.cwd, "packages/web");
+    assert.ok(workspace.services[0]?.args?.includes("--hostname"));
     assert.equal(
       discoverManifest(nested).services[0]?.command,
       "pnpm",
@@ -301,6 +305,15 @@ test("zero-config discovery preserves scripts and applies documented framework f
       astro?.args,
       ["run", "dev", "--host", "127.0.0.1"],
       "An existing PORT binding must not receive a duplicate Astro --port flag",
+    );
+    await mkdir(join(directory, "packages", "api"), { recursive: true });
+    await writeFile(
+      join(directory, "packages", "api", "package.json"),
+      JSON.stringify({ scripts: { start: "node server.js" } }),
+    );
+    assert.throws(
+      () => discoverManifest(directory),
+      /Multiple workspace packages.*packages\/api.*packages\/web/,
     );
   } finally {
     await rm(directory, { recursive: true, force: true });

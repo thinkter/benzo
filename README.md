@@ -1,56 +1,42 @@
 # Benzo
 
-Run development servers in parallel Git worktrees with stable URLs:
+Benzo runs an existing local development server behind a stable origin for its
+Git worktree.
 
 ```text
 http://feature.localhost:3000
-http://feature-2.localhost:3000
 http://api.feature.localhost:3000
 ```
 
-**No application edits.** Benzo discovers common development commands, assigns
-internal ports, supervises services, and shares one HTTP/WebSocket gateway. It
-keeps its files outside your checkout. Auth responses pass through unchanged;
-local callback affinity and loopback redirects are handled at the gateway.
+It starts your command, assigns the process a private loopback port, and proxies
+requests through one shared gateway. It does not edit your application, package
+scripts, environment files, hosts file, or teammates' workflow.
 
-## Use it
+Benzo is not a project orchestrator. It does not infer dependency graphs, start
+databases, run migrations, or manage application-specific workers.
 
-From a checkout with an existing `dev` script (or `start` when there is no `dev`):
+## Start a project
 
-```sh
-benzo dev
-```
-
-Node.js 20.19+ is required. During development, install this unpublished package
-from its checkout or packed tarball:
+Benzo is not published yet. Install it from this checkout:
 
 ```sh
 pnpm add -D /absolute/path/to/benzo
 pnpm exec benzo dev
 ```
 
-Or install the CLI outside the application:
+Or run the CLI directly:
 
 ```sh
-npm install --global /absolute/path/to/benzo
-benzo dev --cwd /path/to/worktree
+node /absolute/path/to/benzo/dist/cli.js dev --cwd /path/to/project
 ```
 
-After publication, the same flows can use the registry package (`pnpm add -D
-benzo`, or `pnpm dlx benzo dev`). This repository has not been published.
+Node.js 20.19 or newer is required.
 
-The implementation roadmap and release gates are tracked in
-[docs/roadmap-checklist.md](docs/roadmap-checklist.md). The checklist keeps
-the supported routing/lifecycle core, optional diagnostics, and remaining
-validation separate. Task scheduling, framework-specific adapters and stateful
-stack management are outside Benzo.
+`benzo dev` selects the root `dev` script, then `start`. If the root has neither,
+it searches nested packages. One package is selected automatically; multiple
+candidates are reported so you can choose one with `--cwd`.
 
-Benzo recognizes Vite, Next.js, Nuxt and Astro commands and passes their existing
-port/host flags. It follows common workspace `--cwd` delegation and final dev
-commands in `&&` chains, preserving the original script. Recognition is broader
-than the currently tested framework set. Other scripts must already honor `PORT`.
-
-Any executable can also be launched directly, without adding a manifest:
+Run a command directly when needed:
 
 ```sh
 benzo dev -- node server.js
@@ -58,196 +44,176 @@ benzo dev -- python -m http.server {port}
 benzo dev --script start:web
 ```
 
-Simple literal `portless run vite` and `portless run next dev` scripts can be
-launched directly by Benzo with an explicit HTTP-trial warning. See the
-[adapter limits](docs/portless-adapter.md); full Portless configuration migration
-and arbitrary wrappers remain unsupported.
+Arguments after `--` are passed as separate arguments. Benzo does not evaluate
+shell strings or guess how a custom wrapper forwards ports. The server must honor
+`PORT`, or receive an explicit `{port}` argument.
 
-Use `benzo migrate portless --dry-run --json` (or `benzo dev --from portless`)
-to inspect the selected root script without launching or changing files. It
-reports a no-edit HTTP trial when supported, and explicit issue codes otherwise.
-It does not preserve Portless origins or apply a migration.
+A script that starts a project orchestrator is not wrapped automatically. Keep
+that launcher, describe its services in a manifest, or integrate it through the
+SDK.
 
-Benzo does not interpret shell command strings. Put arguments after `--` as
-separate tokens. A framework's script still uses its own normal package manager.
-
-## Everyday commands
+## Commands
 
 ```text
-benzo status              live status, internal ports, URLs and log paths
-benzo describe --json     versioned live environment descriptor
-benzo urls                URLs for this worktree
-benzo logs                captured output, including the last stopped run
-benzo logs --service api  one service's captured output
-benzo stop                ask the owning supervisor to stop this worktree
-benzo doctor              discovery, DNS and auth compatibility diagnostics
+benzo dev                         start the selected worktree
+benzo status                      show state, URLs, and private ports
+benzo urls                        show public URLs
+benzo logs [--service NAME]       show captured output
+benzo stop                        stop this worktree
+benzo doctor                      check discovery, DNS, and auth constraints
+benzo config --json               inspect the redacted launch plan
+benzo explain                     explain launch decisions
+benzo describe --json             read the live environment descriptor
+benzo exec -- <command> [args]    run a client with live service bindings
 ```
 
-`benzo config --json` and `benzo explain` inspect the launch plan without
-starting services. They expose environment key names and redact command text,
-arguments, auth upstream URLs and readiness paths, which can contain credentials.
-The requested name is provisional: collision handling and port allocation occur
-at launch. Use `benzo status --json` for actual running origins and ports.
-
-Use `--json` with status, urls or doctor. Use `--cwd`, `--name`, or
-`--gateway-port` to override the checkout, public name, or shared gateway port.
-Repeat `--env KEY=value` to override an existing application setting for this
-launch. For example, `benzo dev --env APP_URL='{origin}'` supplies that service's
-public URL without editing an environment file. Launch overrides win over manifest
-values and support the same placeholders. Values are not included in status or
-doctor output; use your normal secret delivery for credentials rather than CLI
-arguments.
-The first service uses `<name>.localhost`; subsequent services use
-`<service>.<name>.localhost`. Active name collisions get numeric suffixes. Names
-and preferred slots persist across stops.
-
-Startup waits for HTTP readiness before printing the compact service summary.
-Application log lines have no Benzo service prefixes. A required service failure
-stops its worktree and produces a failing exit status. Stopping one worktree leaves
-its peers running; the last lease stops the gateway and shared backend watchers.
-
-## Existing auth and fixed OAuth callbacks
-
-Ordinary auth requests, cookies, request bodies, headers and redirects pass through.
-Benzo preserves the environment expected by the original command, including auth
-settings. It never records inherited environment values in state.
-
-If an existing OAuth provider returns to a fixed localhost callback, Benzo handles
-the callback automatically. The explicit flag remains available for manifests
-that opt into relay mode:
+Useful launch options:
 
 ```sh
-benzo dev --auth-relay
+benzo dev --cwd ../feature --name feature
+benzo dev --gateway-port 3100
+benzo dev --env APP_URL='{origin}'
 ```
 
-The gateway observes OAuth state in authorization redirects or small uncompressed
-auth JSON responses. When the existing callback returns to this gateway's
-`localhost` origin, it redirects the browser once to the initiating named
-worktree. The original provider `redirect_uri`, code exchange and PKCE validation
-stay intact. There are no additional provider callback URLs to register. State
-mappings stay in memory, expire after ten minutes, and reject ambiguous/replayed
-callbacks. IPv4 and IPv6 listeners share the mappings.
+Names default to the checkout directory. An active collision gets a numeric
+suffix. The first service is `<name>.localhost`; later services are
+`<service>.<name>.localhost`. Use `status --json` or `describe --json` for the
+actual allocated values.
 
-**Limits:** a fixed trusted origin/baseURL, hard-coded browser API origin, parent
-Domain cookies, HTTPS-only setup, or OAuth `form_post` flow can require more than
-transparent routing. The relay does not fix those cases. It never disables CSRF,
-rewrites security policy, or reconfigures the provider. A fixed callback on a
-different port is not captured. See [auth cases and existing user
-reports](docs/auth-compatibility.md).
+## Multiple services
 
-## Optional manifest for multiple services
+Put a manifest in `benzo.config.json`, add a `benzo` field to `package.json`, or
+pass an external file with `--config`. Link an external file for later launches:
 
-Benzo supports `benzo.config.json`, a `benzo` field in package.json, or an
-**external** JSON file via `--config /path/project.json`. None requires changing
-application source or existing framework/auth configuration.
+```sh
+benzo link --config /path/to/benzo.json
+benzo unlink
+```
 
-[Opt-in HTTPS](docs/https.md) accepts user-supplied certificate/key files. Benzo
-does not install a CA or change client trust settings; HTTP stays the default.
-
-Manifests use `schemaVersion: 1` (also the default when omitted). Malformed known
-fields fail before launch. Unknown fields remain compatible but are reported by
-`config`, `explain`, and startup diagnostics; their values are not printed in
-those unknown-field diagnostics.
-
-For unusual multi-service apps, use an external manifest or the listener SDK;
-Benzo does not execute a project orchestrator.
-`benzo link --config /path/project.json` remembers an external manifest for this
-checkout, so later launches need only `benzo`. `benzo unlink` restores ordinary
-discovery. This writes only to Benzo's per-user home, not the project.
+Example:
 
 ```json
 {
+  "schemaVersion": 1,
   "services": [
-    { "name": "web", "command": "pnpm", "args": ["dev", "--port", "{port}"] },
+    {
+      "name": "web",
+      "command": "pnpm",
+      "args": ["dev", "--port", "{port}"]
+    },
     {
       "name": "api",
       "cwd": "backend",
       "command": "node",
       "args": ["server.js"],
       "env": { "PORT": "{port}" },
-      "ready": { "path": "/health", "status": 200, "timeout": 60000 }
+      "ready": { "path": "/health", "status": 200 }
     }
   ]
 }
 ```
 
-Arguments and explicit `env` values expand `{port}`, `{name}`, `{origin}`,
-`{gateway}`, `{service}` and `{services.api.origin}`. Existing env files remain the
-application's responsibility; Benzo does not read them. `excludeEnv` optionally
-removes named inherited variables for a particular service. A non-HTTP service
-can use `ready: { "type": "tcp" }`.
+Supported placeholders in command arguments and explicit environment values:
 
-Backends default to `backend: { "mode": "external" }` and are never stopped by
-Benzo. `none` is also supported. `shared` accepts `command`, `args`, `cwd` and `env`
-for one watcher per Git project, owned by the gateway until all leases end.
-Backend configurations must agree across participating worktrees. Benzo does not
-provision databases, run migrations, or promise database isolation.
-
-An explicit remote auth adapter remains available with `auth: { "mode":
-"callback", "upstream": "https://your-existing-auth-service", "pathPrefix":
-"/api/auth/" }`. It forwards matching routes for known worktrees and only callback
-GET routes on the fixed localhost host. This adapter is separate from the local
-state relay.
-
-## Package API
-
-```js
-import { loadManifest, createGateway, namedOrigins, launch, stop } from "benzo";
-
-const config = loadManifest(process.cwd()); // discover if no manifest exists
-const urls = namedOrigins("feature", config.services, 3000);
-const gateway = createGateway({
-  port: 3000,
-  routes: new Map([["feature.localhost", 10001]]),
-});
-await gateway.listen();
-// ...
-await gateway.close();
+```text
+{port}                    private port for this service
+{name}                    allocated worktree name
+{origin}                  public origin for this service
+{gateway}                 gateway port
+{service}                 service name
+{services.api.origin}     another service's public origin
 ```
 
-`reservePorts([ownershipPort, ...servicePorts])` returns an async release function:
-`await release()` hands service ports to children; `await release(true)` releases
-the ownership lease too. `safeEnvironment` preserves values unless `exclude` is
-explicitly provided. CLI processes own their control channels; stop contacts the
-supervisor rather than trusting persisted PIDs.
+Benzo does not read `.env` files. It preserves inherited environment variables;
+`excludeEnv` can remove selected inherited keys. Manifest and `--env` values win
+over inherited values. `config` and `explain` show keys, not values or command
+arguments.
 
-## Portability and demonstrated scope
+A service can use HTTP or TCP readiness checks. Backend mode defaults to
+`external`, meaning Benzo leaves the backend alone. `shared` runs one configured
+watcher for the project; `none` disables backend handling. Benzo does not
+provision or isolate backend state.
 
-Runtime code uses Node networking/filesystem/process APIs and argv-based execution.
-Windows package-manager shims use cross-spawn; Windows process trees use
-`taskkill.exe`, because Node has no Windows process-group termination API. No Unix
-shell utilities, privileged setup, hosts-file edits, Git CLI, or containers are
-required by Benzo itself.
+## Origins, auth, and HTTPS
 
-`.localhost` works in the tested Chromium browser without DNS setup. Some OS
-resolvers do not resolve it for command-line clients; doctor reports that and
-status exposes the internal loopback ports. Switching origins can affect auth.
+The gateway forwards request bodies, cookies, headers, streaming responses,
+WebSockets, and external redirects. It translates supported redirects back to
+the named origin when an app sends a fixed local gateway URL.
 
-State/logs live in `~/.cache/benzo` by default; set `BENZO_HOME` to move them.
-State uses private permissions where supported. Application output can contain
-sensitive information; don't publish raw logs.
+Supported local OAuth flows keep callback affinity with the worktree that started
+sign-in. Benzo does not change the provider's `redirect_uri`, perform the code
+exchange, or disable CSRF checks. Hard-coded trusted origins, parent-domain
+cookies, fixed callbacks on another port, and unsupported response modes still
+need application-specific handling. Run `benzo doctor`; see
+[auth compatibility](docs/auth-compatibility.md).
 
-Packaged Linux Excalidraw trials cover a bare root launch and configured
-worktrees. State-in-url results are reported per example and lane; older passing
-runs do not establish a current eight-example pass. Separate Vite/Next.js and
-Better Auth OAuth/PKCE fixtures exercise the gateway. Consult each report for
-its source hash, execution status and exact scope. Root orchestration and automatic Portless migration remain unsupported.
-Sokosumi requires HTTPS443 and an authenticated backend baseline; Documenso and
-Plane are blocked by missing Docker prerequisites. Native Windows/macOS and
-external OAuth providers have not been demonstrated locally. See the [results and
-reproduction instructions](compatibility/README.md) and [scope checklist](docs/roadmap-checklist.md).
+HTTP is the default. HTTPS is opt-in with a certificate and key you provide:
 
-Integrations can use [`getEnvironment()`](docs/environment-api.md) to read actual
-running origins and service identities without parsing logs or private state.
-Clients can use `benzo exec --env BASE_URL='{services.web.origin}' -- <command>`
-to receive an explicit URL binding from the running environment. The client must
-already support that environment variable; Benzo preserves its arguments and
-does not change the dev server's lifecycle.
+```json
+{
+  "gateway": {
+    "port": 8443,
+    "tls": {
+      "certFile": "/path/to/cert.pem",
+      "keyFile": "/path/to/key.pem"
+    }
+  },
+  "services": [
+    { "name": "web", "command": "pnpm", "args": ["dev", "--port", "{port}"] }
+  ]
+}
+```
 
-Development sources, tests, and benchmark tools use strict TypeScript. Run
-`npm run typecheck` for production and `npm test` to compile all three projects,
-check consumer declarations, and run the core suites against the built package.
-The published CLI and SDK run from `dist/`; tests and tools compile into ignored
-`.test-dist/` and `.tools-dist/` directories. Use `npm run test:compat -- <project>`
-to build and run the benchmark. Generated JavaScript and embedded JavaScript
-fixture programs remain intentional runtime artifacts.
+Benzo does not generate certificates, install a CA, change trust stores, or edit
+DNS. See [HTTPS](docs/https.md).
+
+## Existing orchestrators
+
+An orchestrator can keep ownership of its processes and register listeners with
+Benzo:
+
+```js
+import { reserveEnvironment } from "benzo";
+
+const lease = await reserveEnvironment({
+  cwd: process.cwd(),
+  name: "feature",
+  services: ["web"],
+});
+
+// Start the service with the orchestrator's normal lifecycle.
+await lease.attach("web", { port: 4173, ready: true });
+// await lease.release() during shutdown.
+```
+
+Benzo owns the route for the lifetime of the lease. The orchestrator owns the
+process and decides when to stop it. See [the environment API](docs/environment-api.md).
+
+## Portless
+
+Portless inspection is read-only:
+
+```sh
+benzo migrate portless --dry-run --json
+```
+
+Benzo does not rewrite package files, migrate TLS, preserve Portless origins, or
+run workspace graphs. See [the adapter limits](docs/portless-adapter.md).
+
+## State and development
+
+State and logs live in `~/.cache/benzo`. Set `BENZO_HOME` to move them. Logs are
+application output and may contain secrets.
+
+```sh
+pnpm install
+pnpm build
+pnpm test
+pnpm test:browser       # optional Playwright fixtures
+pnpm test:compat        # optional pinned OSS trials
+```
+
+The supported core is named worktree origins, private service ports, readiness,
+one shared gateway, transparent proxying, and explicit manifest or SDK
+integration. Task graphs, framework-specific adapters, databases, migrations,
+tunnels, and application rewrites remain outside that core.

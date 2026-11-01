@@ -1,6 +1,6 @@
 import type { ManifestInput, NormalizedManifest, JsonObject } from "./types.js";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { jsonObject } from "./wire.js";
 import { unwrapPortless } from "./portless.js";
 import { associatedManifest } from "./association.js";
@@ -185,6 +185,83 @@ function packageManager(root: string, pkg: JsonObject): string {
   }
   return "npm";
 }
+
+interface NestedScript {
+  cwd: string;
+  script: string;
+}
+
+function nestedScripts(
+  root: string,
+  directory = root,
+  depth = 0,
+): NestedScript[] {
+  if (depth > 4) return [];
+  let entries: Array<{ isDirectory(): boolean; name: string }>;
+  try {
+    entries = readdirSync(directory, { withFileTypes: true, encoding: "utf8" });
+  } catch {
+    return [];
+  }
+  const result: NestedScript[] = [];
+  for (const entry of entries) {
+    if (
+      !entry.isDirectory() ||
+      [".git", ".next", ".cache", ".dev", "dist", "node_modules"].includes(
+        entry.name,
+      )
+    )
+      continue;
+    const child = join(directory, entry.name);
+    const packagePath = join(child, "package.json");
+    if (existsSync(packagePath)) {
+      try {
+        const scripts = packageScripts(readPackage(packagePath));
+        const script = scripts["dev"] !== undefined ? "dev" : "start";
+        if (scripts[script] !== undefined) result.push({ cwd: child, script });
+      } catch {
+        // A nested package is not a candidate if its metadata is malformed.
+      }
+    }
+    result.push(...nestedScripts(root, child, depth + 1));
+  }
+  return result;
+}
+
+function nestedDiscovery(
+  cwd: string,
+  script: string | undefined,
+): ManifestInput | undefined {
+  if (script !== undefined) return undefined;
+  const candidates = nestedScripts(cwd);
+  if (candidates.length === 0) return undefined;
+  if (candidates.length > 1) {
+    const names = candidates
+      .map((candidate) => relative(cwd, candidate.cwd) || ".")
+      .sort()
+      .join(", ");
+    throw new Error(
+      "No root dev or start script found. Multiple workspace packages have launch scripts: " +
+        names +
+        ". Use --cwd <package> or an external Benzo manifest.",
+    );
+  }
+  const candidate = candidates[0];
+  if (!candidate) return undefined;
+  const input = discoverInput(candidate.cwd, { script: candidate.script });
+  const packageCwd = relative(cwd, candidate.cwd) || ".";
+  return {
+    ...input,
+    discovery: "workspace",
+    services: (input.services ?? []).map((service) => ({
+      ...service,
+      cwd:
+        service.cwd && service.cwd !== "."
+          ? join(packageCwd, service.cwd)
+          : packageCwd,
+    })),
+  };
+}
 function nestedFramework(
   cwd: string,
   script: string | undefined,
@@ -239,7 +316,11 @@ function discoverInput(
     return pkg["benzo"] as ManifestInput;
   }
   const scripts = packageScripts(pkg);
-  script ??= scripts["dev"] ? "dev" : "start";
+  script ??= scripts["dev"] ? "dev" : scripts["start"] ? "start" : undefined;
+  if (script === undefined) {
+    const nested = nestedDiscovery(cwd, script);
+    if (nested) return nested;
+  }
   if (!script) throw new Error("No dev or start script found.");
   const scriptText = packageScript(scripts, script) ?? "";
   if (
