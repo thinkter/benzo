@@ -52,10 +52,12 @@ Benzo leaves existing provider registration intact when its callback already
 points to the gateway's localhost scheme and port. It observes state from a
 Location header or an uncompressed JSON authorization response under `/api/auth/`.
 The JSON adapter accepts the standard top-level `{ "url": "..." }` envelope and
-normal content-type parameters while preserving the original response bytes.
-The matching callback is redirected once to the named origin so the browser sends
-that worktree's state/PKCE cookies. Code and state are not modified or stored on
-disk, and the provider's original redirect_uri is used by the app's token exchange.
+normal content-type parameters while preserving authorization response bytes.
+The matching callback is redirected once to the named origin so the browser
+sends that worktree's state/PKCE cookies. A bounded NextAuth-style sign-out
+envelope is also translated when its `url` points at this gateway's fixed
+localhost origin. Code and state are not modified or stored on disk, and the
+provider's original redirect_uri is used by the app's token exchange.
 
 Tested at protocol level: opaque states for simultaneous sign-ins, different
 worktrees, JSON response byte preservation, unknown states, replay rejection,
@@ -111,10 +113,11 @@ observed for OAuth callback affinity.
 - Shared backend data stays shared; worktree URL isolation is not database isolation.
 - Separate databases/migrations, static asset origins, CORS, absolute redirects,
   service workers and cache namespaces can also cause cross-worktree surprises.
-- Existing default pass-through never rewrites auth response bodies, external
-  redirect targets, Origin headers, CSRF checks or provider configuration. It may
-  rewrite an absolute redirect that points back to the gateway's own loopback
-  origin so the browser remains on the initiating named worktree.
+- Existing default pass-through does not rewrite authorization response bodies,
+  external redirect targets, Origin headers, CSRF checks or provider
+  configuration. The bounded sign-out envelope is the exception: only its
+  top-level local `url` is translated so the browser remains on the initiating
+  named worktree.
 
 Re-run `pnpm test` and `pnpm test:browser` after auth changes. Add a failing fixture
 for a new report, fix it inside Benzo where transparent behavior is possible, then

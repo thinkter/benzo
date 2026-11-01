@@ -544,6 +544,50 @@ test("standard auth JSON navigation envelope is observed with content-type param
   }
 });
 
+test("NextAuth sign-out JSON navigation stays on the named worktree", async () => {
+  let gatewayPort: number;
+  const app = createServer((request, response) => {
+    if (request.url !== "/api/auth/signout") {
+      response.writeHead(404).end();
+      return;
+    }
+    const original = JSON.stringify({
+      url: "http://localhost:" + gatewayPort + "/",
+    });
+    response
+      .writeHead(200, {
+        "content-type": "application/json",
+        "content-length": String(Buffer.byteLength(original)),
+      })
+      .end(original);
+  });
+  await listen(app);
+  const gateway = createGateway({
+    port: 0,
+    routes: new Map([["feature.localhost", portOf(app)]]),
+  });
+  await gateway.listen();
+  const port = portOf(gateway.server);
+  gatewayPort = port;
+  try {
+    const result = await request(
+      port,
+      "/api/auth/signout",
+      "feature.localhost:" + port,
+    );
+    assert.deepEqual(JSON.parse(result.body), {
+      url: "http://feature.localhost:" + port + "/",
+    });
+    assert.equal(
+      result.headers["content-length"],
+      String(Buffer.byteLength(result.body)),
+    );
+  } finally {
+    await gateway.close();
+    await close(app);
+  }
+});
+
 test("relay refuses ambiguous states, expired states and wrong callback paths", async () => {
   let fixed: string;
   const callbacks = new Map<string, CallbackEntry>();

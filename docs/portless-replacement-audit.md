@@ -87,7 +87,7 @@ and capacity management requirements are not implemented by named URLs alone.
 3. **Per-user fallback configuration.** Existing external JSON manifests,
    explicit commands, script selection, environment placeholders and health
    checks already provide an escape hatch without app edits. `benzo link
-   --config <file>` now persists an external association, allowing bare `benzo`;
+--config <file>` now persists an external association, allowing bare `benzo`;
    `benzo unlink` reverses it. External listener ownership is supported through
    leases; dependency graphs and non-listening workers still need integration.
 4. **Explicit HTTPS and trust support.** Preserve the complete requested origin
@@ -102,8 +102,9 @@ and capacity management requirements are not implemented by named URLs alone.
 ## Remaining origin limitations
 
 The current gateway rewrites local absolute Location headers and observes OAuth
-state in supported redirects/JSON, and translates bounded HTTP Refresh headers. It does not rewrite JavaScript, HTML, cookies
-or JSON navigation URLs. NextAuth-style JSON sign-out URLs, compressed auth
+state in supported redirects/JSON, translates bounded HTTP Refresh headers, and
+translates a bounded NextAuth-style sign-out JSON URL. It does not rewrite
+JavaScript, HTML, cookies or general JSON navigation URLs. Compressed auth
 responses and custom origin checks need their own evidence. Bounded observed
 `form_post` callbacks now have fixture/browser coverage, including PKCE and
 cookie-policy checks; arbitrary signed response modes remain unsupported.

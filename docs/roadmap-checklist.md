@@ -12,7 +12,7 @@ workflows.
 - [x] Preserve HTTP bodies, uploads, streaming, WebSockets, cookies and normal
       redirects.
 - [x] Relay bounded OAuth query and `form_post` callbacks with owner affinity.
-- [x] Observe standard auth JSON `{ "url": "..." }` responses without rewriting
+- [x] Observe auth JSON and translate bounded local sign-out navigation envelopes.
       response bytes.
 - [x] Support opt-in HTTPS using user-supplied certificates.
 - [x] Expose a redacted launch plan, live descriptor, SDK leases and `exec`.

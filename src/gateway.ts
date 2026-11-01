@@ -138,6 +138,25 @@ function rewriteLocalRefresh(
   return `${match[1]}${quote}${rewritten}${quote}${match[5]}`;
 }
 
+function rewriteLocalJsonNavigation(
+  body: Buffer,
+  request: IncomingMessage,
+  gatewayPort: number,
+  protocol: "http" | "https",
+): Buffer | undefined {
+  try {
+    const value = jsonObject(body.toString("utf8"));
+    const url = value["url"];
+    if (typeof url !== "string") return undefined;
+    const rewritten = rewriteLocalRedirect(url, request, gatewayPort, protocol);
+    if (rewritten === url || rewritten === undefined) return undefined;
+    value["url"] = rewritten;
+    return Buffer.from(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+}
+
 export function createGateway({
   routes = new Map(),
   port = 3000,
@@ -331,9 +350,10 @@ export function createGateway({
             boundPort(),
             protocol,
           );
-        response.writeHead(incoming.statusCode ?? 502, headers);
         // Better Auth returns the authorization URL in JSON rather than Location.
-        // Relay mode only observes a bounded copy; response bytes pass unchanged.
+        // Relay mode observes a bounded copy. Sign-out navigation URLs that point
+        // at this gateway's fixed localhost origin are translated to the named
+        // worktree so the browser does not leave it.
         let collected: Buffer[] = [];
         let size = 0;
         const observeJson =
@@ -343,6 +363,38 @@ export function createGateway({
           ) &&
           /^application\/json\b/.test(incoming.headers["content-type"] ?? "") &&
           !incoming.headers["content-encoding"];
+        const rewriteJson =
+          observeJson && /(?:^|\/)signout(?:\?|$)/.test(request.url ?? "");
+        if (rewriteJson) {
+          incoming.on("data", (chunk: Buffer) => {
+            size += chunk.length;
+            if (size <= 65536) {
+              collected.push(chunk);
+              return;
+            }
+            if (!response.headersSent)
+              response.writeHead(incoming.statusCode ?? 502, headers);
+            response.write(chunk);
+          });
+          incoming.once("end", () => {
+            if (size <= 65536) {
+              const original = Buffer.concat(collected);
+              const rewritten = rewriteLocalJsonNavigation(
+                original,
+                request,
+                boundPort(),
+                protocol,
+              );
+              const output = rewritten ?? original;
+              if (rewritten) headers["content-length"] = String(output.length);
+              response.writeHead(incoming.statusCode ?? 502, headers);
+              response.end(output);
+            } else response.end();
+          });
+          incoming.on("error", () => response.destroy());
+          return;
+        }
+        response.writeHead(incoming.statusCode ?? 502, headers);
         if (observeJson)
           incoming.on("data", (chunk: Buffer) => {
             size += chunk.length;
@@ -353,14 +405,11 @@ export function createGateway({
           incoming.once("end", () => {
             if (size <= 65536) {
               try {
-                const url = jsonObject(Buffer.concat(collected).toString())["url"];
+                const url = jsonObject(Buffer.concat(collected).toString())[
+                  "url"
+                ];
                 if (typeof url !== "string") return;
-                observe(
-                  url,
-                  request,
-                  routeAuth,
-                  target,
-                );
+                observe(url, request, routeAuth, target);
               } catch {}
             }
           });
