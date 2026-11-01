@@ -18,6 +18,13 @@ Start a branch, open its URL, and leave it running. Start another branch beside
 it. Compare them without stopping servers, editing application code, or teaching
 the whole team a new workflow.
 
+Authentication comes along with it. For the usual localhost setup, sign-in,
+sign-out, cookies, and supported local OAuth callbacks work out of the box and
+stay on the worktree that started them. You do not need to add callback URLs at
+the provider or change the application's auth setup just to try another branch.
+[Auth compatibility](docs/auth-compatibility.md) covers the small set of
+applications with hard-coded origin rules.
+
 - Review a branch while your current work stays live.
 - Compare two versions side by side.
 - Keep each worktree on its own browser origin.
@@ -71,6 +78,11 @@ suffix. Additional services get subdomains such as `api.payments.localhost`.
 Benzo is an optional layer around local development. It does not edit source
 files, package scripts, environment files, or hosts files. A teammate can keep
 using the normal project command while you use Benzo in another worktree.
+
+This is per-developer adoption. You can install Benzo globally and use it only
+when you want named worktree URLs. Everyone else can keep running `pnpm dev` as
+usual. Portless-style adoption changes the project's shared command or config,
+which makes the migration a team decision; Benzo does not require that.
 
 Most projects need no configuration. For multiple services or an existing
 orchestrator, use a manifest or the SDK. Benzo owns the named route; your
